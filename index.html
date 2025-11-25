@@ -3,1254 +3,405 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Granny Horror Game</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <title>Tic-Tac-Toe Game</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         
         body {
-            background-color: #000;
-            color: #fff;
-            font-family: 'Courier New', monospace;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
             min-height: 100vh;
-        }
-        
-        #gameContainer {
-            position: relative;
-            width: 100%;
-            max-width: 1000px;
-            height: 600px;
-            margin: 20px auto;
-            border: 2px solid #444;
-            box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
-        }
-        
-        #gameCanvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-        }
-        
-        .ui-overlay {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 10;
-            pointer-events: none;
-        }
-        
-        .health-bar {
-            width: 200px;
-            height: 20px;
-            background-color: #333;
-            border: 1px solid #555;
-            margin-bottom: 10px;
-        }
-        
-        .health-fill {
-            height: 100%;
-            width: 100%;
-            background-color: #8B0000;
-            transition: width 0.3s;
-        }
-        
-        .day-counter {
-            font-size: 16px;
-            margin-bottom: 10px;
-            color: #ccc;
-        }
-        
-        .instructions {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            font-size: 14px;
-            color: #aaa;
-        }
-        
-        .game-over, .game-win {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.8);
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
-            z-index: 20;
-            display: none;
+            align-items: center;
+            padding: 20px;
         }
         
-        .game-over h1, .game-win h1 {
-            font-size: 48px;
-            color: #8B0000;
+        .container {
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+        
+        h1 {
+            color: #333;
             margin-bottom: 20px;
-            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
         }
         
-        .game-win h1 {
-            color: #006400;
-            text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
         
-        .restart-btn {
-            padding: 10px 20px;
-            background-color: #333;
-            color: #fff;
-            border: 1px solid #555;
-            font-family: 'Courier New', monospace;
-            font-size: 18px;
+        .player {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .player.active {
+            background: #4dabf7;
+            color: white;
+            transform: scale(1.05);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .player h2 {
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+        }
+        
+        .score {
+            font-size: 1.8rem;
+            font-weight: bold;
+        }
+        
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .cell {
+            aspect-ratio: 1;
+            background-color: #e9ecef;
+            border: none;
+            border-radius: 10px;
+            font-size: 3rem;
+            font-weight: bold;
             cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        
-        .restart-btn:hover {
-            background-color: #555;
-        }
-        
-        .mini-map {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 150px;
-            height: 150px;
-            background-color: rgba(0, 0, 0, 0.7);
-            border: 1px solid #555;
-            z-index: 10;
-            display: none;
-        }
-        
-        .inventory {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
+            transition: all 0.3s ease;
             display: flex;
-            gap: 10px;
-            z-index: 10;
-        }
-        
-        .inventory-slot {
-            width: 40px;
-            height: 40px;
-            background-color: rgba(50, 50, 50, 0.7);
-            border: 1px solid #666;
-            display: flex;
-            align-items: center;
             justify-content: center;
-            font-size: 20px;
-        }
-        
-        .item-count {
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            font-size: 12px;
-            background-color: rgba(0, 0, 0, 0.7);
-            padding: 2px 4px;
-        }
-        
-        .loading {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #000;
-            display: flex;
-            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            z-index: 30;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
         
-        .loading-bar {
-            width: 300px;
-            height: 20px;
-            background-color: #333;
-            border: 1px solid #555;
+        .cell:hover {
+            background-color: #dee2e6;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .cell.x {
+            color: #e03131;
+        }
+        
+        .cell.o {
+            color: #1971c2;
+        }
+        
+        .cell.win {
+            background-color: #ffd8a8;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
             margin-top: 20px;
         }
         
-        .loading-fill {
-            height: 100%;
-            width: 0%;
-            background-color: #8B0000;
-            transition: width 0.3s;
+        button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        #reset {
+            background: #495057;
+            color: white;
+        }
+        
+        #reset:hover {
+            background: #343a40;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        #new-game {
+            background: #37b24d;
+            color: white;
+        }
+        
+        #new-game:hover {
+            background: #2f9e44;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .status {
+            margin: 20px 0;
+            font-size: 1.3rem;
+            font-weight: bold;
+            min-height: 30px;
+            color: #495057;
+        }
+        
+        .win-message {
+            color: #37b24d;
+            animation: bounce 0.5s;
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 60%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            80% { transform: translateY(-5px); }
+        }
+        
+        .draw-message {
+            color: #f59f00;
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .cell {
+                font-size: 2.5rem;
+            }
+            
+            button {
+                padding: 10px 20px;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>3D Granny Horror Game</h1>
-    <div id="gameContainer">
-        <div id="gameCanvas"></div>
+    <div class="container">
+        <h1>Tic-Tac-Toe</h1>
         
-        <div class="ui-overlay">
-            <div class="health-bar">
-                <div class="health-fill" id="healthFill"></div>
+        <div class="game-info">
+            <div class="player active" id="player-x">
+                <h2>Player X</h2>
+                <div class="score" id="score-x">0</div>
             </div>
-            <div class="day-counter" id="dayCounter">Day 1 - 7:00 AM</div>
-        </div>
-        
-        <div class="instructions">
-            <p>WASD: Move | Mouse: Look | H: Hide | M: Map | E: Use Item | SPACE: Jump</p>
-        </div>
-        
-        <div class="mini-map" id="miniMap"></div>
-        
-        <div class="inventory" id="inventory">
-            <!-- Inventory slots will be added by JavaScript -->
-        </div>
-        
-        <div class="game-over" id="gameOver">
-            <h1>GAME OVER</h1>
-            <p>Granny caught you!</p>
-            <button class="restart-btn" onclick="restartGame()">Try Again</button>
-        </div>
-        
-        <div class="game-win" id="gameWin">
-            <h1>YOU ESCAPED!</h1>
-            <p>You survived Granny's house!</p>
-            <button class="restart-btn" onclick="restartGame()">Play Again</button>
-        </div>
-        
-        <div class="loading" id="loading">
-            <h2>Loading 3D Granny Horror Game...</h2>
-            <div class="loading-bar">
-                <div class="loading-fill" id="loadingFill"></div>
+            <div class="player" id="player-o">
+                <h2>Player O</h2>
+                <div class="score" id="score-o">0</div>
             </div>
+        </div>
+        
+        <div class="status" id="status">Player X's Turn</div>
+        
+        <div class="game-board" id="board">
+            <button class="cell" data-index="0"></button>
+            <button class="cell" data-index="1"></button>
+            <button class="cell" data-index="2"></button>
+            <button class="cell" data-index="3"></button>
+            <button class="cell" data-index="4"></button>
+            <button class="cell" data-index="5"></button>
+            <button class="cell" data-index="6"></button>
+            <button class="cell" data-index="7"></button>
+            <button class="cell" data-index="8"></button>
+        </div>
+        
+        <div class="controls">
+            <button id="reset">Reset Round</button>
+            <button id="new-game">New Game</button>
         </div>
     </div>
 
     <script>
-        // Game variables
-        const gameContainer = document.getElementById('gameContainer');
-        const healthFill = document.getElementById('healthFill');
-        const dayCounter = document.getElementById('dayCounter');
-        const miniMap = document.getElementById('miniMap');
-        const inventory = document.getElementById('inventory');
-        const gameOverScreen = document.getElementById('gameOver');
-        const gameWinScreen = document.getElementById('gameWin');
-        const loadingScreen = document.getElementById('loading');
-        const loadingFill = document.getElementById('loadingFill');
-        
-        // Three.js variables
-        let scene, camera, renderer, controls;
-        let player, granny;
-        let rooms = [];
-        let walls = [];
-        let doors = [];
-        let hidingSpots = [];
-        let items = [];
-        
-        // Game state
-        let gameState = {
-            player: {
-                position: { x: 0, y: 0, z: 0 },
-                health: 100,
-                hidden: false,
-                hiddenTime: 0,
-                items: [],
-                velocity: { x: 0, y: 0, z: 0 },
-                onGround: false
-            },
-            granny: {
-                position: { x: 0, y: 0, z: 0 },
-                state: 'patrol', // patrol, chase, search
-                targetPosition: { x: 0, y: 0, z: 0 },
-                awareness: 0,
-                lastSeenPlayerPosition: { x: 0, y: 0, z: 0 },
-                searchTimer: 0
-            },
-            keys: {
-                w: false,
-                a: false,
-                s: false,
-                d: false,
-                h: false,
-                m: false,
-                space: false
-            },
-            day: 1,
-            time: 7.0, // 24-hour format
-            gameOver: false,
-            gameWin: false,
-            mapVisible: false,
-            mouse: { x: 0, y: 0 },
-            clock: new THREE.Clock()
-        };
+        document.addEventListener('DOMContentLoaded', () => {
+            // Game state
+            const gameState = {
+                board: ['', '', '', '', '', '', '', '', ''],
+                currentPlayer: 'X',
+                gameActive: true,
+                scores: {
+                    X: 0,
+                    O: 0
+                },
+                winningCombinations: [
+                    [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+                    [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
+                    [0, 4, 8], [2, 4, 6]             // Diagonals
+                ]
+            };
 
-        // Initialize the game
-        async function init() {
-            // Set up Three.js scene
-            setupScene();
-            
-            // Create the game world
-            await createWorld();
-            
-            // Set up game systems
-            setupInventory();
-            setupEventListeners();
-            
-            // Hide loading screen
-            loadingScreen.style.display = 'none';
-            
-            // Start game loop
-            gameLoop();
-        }
+            // DOM elements
+            const cells = document.querySelectorAll('.cell');
+            const statusDisplay = document.getElementById('status');
+            const playerXDisplay = document.getElementById('player-x');
+            const playerODisplay = document.getElementById('player-o');
+            const scoreXDisplay = document.getElementById('score-x');
+            const scoreODisplay = document.getElementById('score-o');
+            const resetButton = document.getElementById('reset');
+            const newGameButton = document.getElementById('new-game');
 
-        // Set up Three.js scene
-        function setupScene() {
-            // Create scene
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x111122);
-            scene.fog = new THREE.Fog(0x111122, 10, 50);
-            
-            // Create camera
-            camera = new THREE.PerspectiveCamera(75, gameContainer.clientWidth / gameContainer.clientHeight, 0.1, 1000);
-            camera.position.set(0, 5, 0);
-            
-            // Create renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(gameContainer.clientWidth, gameContainer.clientHeight);
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            document.getElementById('gameCanvas').appendChild(renderer.domElement);
-            
-            // Add lights
-            const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
-            scene.add(ambientLight);
-            
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(10, 20, 10);
-            directionalLight.castShadow = true;
-            directionalLight.shadow.mapSize.width = 2048;
-            directionalLight.shadow.mapSize.height = 2048;
-            directionalLight.shadow.camera.near = 0.5;
-            directionalLight.shadow.camera.far = 50;
-            directionalLight.shadow.camera.left = -20;
-            directionalLight.shadow.camera.right = 20;
-            directionalLight.shadow.camera.top = 20;
-            directionalLight.shadow.camera.bottom = -20;
-            scene.add(directionalLight);
-            
-            // Add a point light for creepy atmosphere
-            const pointLight = new THREE.PointLight(0xff0000, 0.5, 30);
-            pointLight.position.set(5, 5, 5);
-            scene.add(pointLight);
-        }
-
-        // Create the game world
-        async function createWorld() {
-            // Create floor
-            const floorGeometry = new THREE.PlaneGeometry(100, 100);
-            const floorMaterial = new THREE.MeshStandardMaterial({ 
-                color: 0x333333,
-                roughness: 0.8,
-                metalness: 0.2
-            });
-            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-            floor.rotation.x = -Math.PI / 2;
-            floor.receiveShadow = true;
-            scene.add(floor);
-            
-            // Create rooms
-            await createRooms();
-            
-            // Create player
-            createPlayer();
-            
-            // Create Granny
-            await createGranny();
-            
-            // Create items
-            createItems();
-            
-            // Update loading progress
-            loadingFill.style.width = '100%';
-        }
-
-        // Create rooms
-        async function createRooms() {
-            const roomData = [
-                { name: 'Bedroom', position: { x: -15, z: 0 }, size: { width: 10, depth: 10 }, color: 0x2a1f4a },
-                { name: 'Hallway', position: { x: 0, z: 0 }, size: { width: 5, depth: 20 }, color: 0x3a2f5a },
-                { name: 'Living Room', position: { x: 10, z: -5 }, size: { width: 15, depth: 10 }, color: 0x2a3f4a },
-                { name: 'Kitchen', position: { x: 10, z: 10 }, size: { width: 15, depth: 10 }, color: 0x4a2f3a },
-                { name: 'Bathroom', position: { x: -15, z: 15 }, size: { width: 10, depth: 8 }, color: 0x2a4a3f },
-                { name: 'Storage', position: { x: -15, z: -15 }, size: { width: 10, depth: 8 }, color: 0x4a4a2a }
-            ];
-            
-            for (const data of roomData) {
-                await createRoom(data);
-                loadingFill.style.width = `${(rooms.length / roomData.length) * 70}%`;
-            }
-        }
-
-        // Create a single room
-        function createRoom(data) {
-            return new Promise(resolve => {
-                // Room floor
-                const floorGeometry = new THREE.PlaneGeometry(data.size.width, data.size.depth);
-                const floorMaterial = new THREE.MeshStandardMaterial({ 
-                    color: data.color,
-                    roughness: 0.8,
-                    metalness: 0.2
-                });
-                const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-                floor.rotation.x = -Math.PI / 2;
-                floor.position.set(data.position.x, 0.01, data.position.z);
-                floor.receiveShadow = true;
-                scene.add(floor);
-                
-                // Room walls
-                const wallHeight = 5;
-                const wallThickness = 0.3;
-                
-                // North wall
-                const northWall = createWall(
-                    data.size.width, wallHeight, wallThickness,
-                    data.position.x, wallHeight/2, data.position.z - data.size.depth/2,
-                    0, 0, 0
-                );
-                scene.add(northWall);
-                walls.push(northWall);
-                
-                // South wall
-                const southWall = createWall(
-                    data.size.width, wallHeight, wallThickness,
-                    data.position.x, wallHeight/2, data.position.z + data.size.depth/2,
-                    0, 0, 0
-                );
-                scene.add(southWall);
-                walls.push(southWall);
-                
-                // East wall
-                const eastWall = createWall(
-                    wallThickness, wallHeight, data.size.depth,
-                    data.position.x + data.size.width/2, wallHeight/2, data.position.z,
-                    0, 0, 0
-                );
-                scene.add(eastWall);
-                walls.push(eastWall);
-                
-                // West wall
-                const westWall = createWall(
-                    wallThickness, wallHeight, data.size.depth,
-                    data.position.x - data.size.width/2, wallHeight/2, data.position.z,
-                    0, 0, 0
-                );
-                scene.add(westWall);
-                walls.push(westWall);
-                
-                // Add room to list
-                rooms.push({
-                    name: data.name,
-                    position: data.position,
-                    size: data.size,
-                    floor: floor,
-                    walls: [northWall, southWall, eastWall, westWall]
+            // Initialize the game
+            function initGame() {
+                cells.forEach(cell => {
+                    cell.textContent = '';
+                    cell.classList.remove('x', 'o', 'win');
+                    cell.addEventListener('click', handleCellClick);
                 });
                 
-                resolve();
-            });
-        }
-
-        // Create a wall
-        function createWall(width, height, depth, x, y, z, rx, ry, rz) {
-            const geometry = new THREE.BoxGeometry(width, height, depth);
-            const material = new THREE.MeshStandardMaterial({ 
-                color: 0x555555,
-                roughness: 0.7,
-                metalness: 0.3
-            });
-            const wall = new THREE.Mesh(geometry, material);
-            wall.position.set(x, y, z);
-            wall.rotation.set(rx, ry, rz);
-            wall.castShadow = true;
-            wall.receiveShadow = true;
-            return wall;
-        }
-
-        // Create player
-        function createPlayer() {
-            // Player is represented by the camera in first-person view
-            // We'll create a simple capsule to represent the player in the mini-map
-            const geometry = new THREE.CapsuleGeometry(0.5, 1, 4, 8);
-            const material = new THREE.MeshBasicMaterial({ 
-                color: 0x00ff00,
-                wireframe: true,
-                visible: false // Invisible in main view, only for mini-map
-            });
-            player = new THREE.Mesh(geometry, material);
-            player.position.set(0, 1, 0);
-            scene.add(player);
-            
-            // Set initial player position
-            gameState.player.position = { x: -12, y: 0, z: 0 };
-            camera.position.set(gameState.player.position.x, 1.7, gameState.player.position.z);
-        }
-
-        // Create Granny
-        async function createGranny() {
-            return new Promise(resolve => {
-                // Create a creepy Granny model using basic geometries
-                const group = new THREE.Group();
-                
-                // Body
-                const bodyGeometry = new THREE.CylinderGeometry(0.5, 0.7, 1.5, 8);
-                const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x8B008B });
-                const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-                body.position.y = 0.75;
-                body.castShadow = true;
-                group.add(body);
-                
-                // Head
-                const headGeometry = new THREE.SphereGeometry(0.5, 8, 6);
-                const headMaterial = new THREE.MeshStandardMaterial({ color: 0xFFE4B5 });
-                const head = new THREE.Mesh(headGeometry, headMaterial);
-                head.position.y = 1.8;
-                head.castShadow = true;
-                group.add(head);
-                
-                // Creepy face
-                // Eyes
-                const eyeGeometry = new THREE.SphereGeometry(0.1, 6, 6);
-                const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000 });
-                
-                const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-                leftEye.position.set(-0.15, 1.85, 0.4);
-                group.add(leftEye);
-                
-                const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-                rightEye.position.set(0.15, 1.85, 0.4);
-                group.add(rightEye);
-                
-                // Mouth (creepy smile)
-                const mouthGeometry = new THREE.TorusGeometry(0.2, 0.05, 4, 6, Math.PI);
-                const mouthMaterial = new THREE.MeshBasicMaterial({ color: 0x8B0000 });
-                const mouth = new THREE.Mesh(mouthGeometry, mouthMaterial);
-                mouth.position.set(0, 1.7, 0.4);
-                mouth.rotation.x = Math.PI / 2;
-                group.add(mouth);
-                
-                // Arms
-                const armGeometry = new THREE.CylinderGeometry(0.1, 0.1, 1, 6);
-                const armMaterial = new THREE.MeshStandardMaterial({ color: 0x8B008B });
-                
-                const leftArm = new THREE.Mesh(armGeometry, armMaterial);
-                leftArm.position.set(-0.7, 1.2, 0);
-                leftArm.rotation.z = Math.PI / 6;
-                leftArm.castShadow = true;
-                group.add(leftArm);
-                
-                const rightArm = new THREE.Mesh(armGeometry, armMaterial);
-                rightArm.position.set(0.7, 1.2, 0);
-                rightArm.rotation.z = -Math.PI / 6;
-                rightArm.castShadow = true;
-                group.add(rightArm);
-                
-                // Legs
-                const legGeometry = new THREE.CylinderGeometry(0.15, 0.15, 1, 6);
-                const legMaterial = new THREE.MeshStandardMaterial({ color: 0x4B0082 });
-                
-                const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
-                leftLeg.position.set(-0.25, 0.25, 0);
-                leftLeg.castShadow = true;
-                group.add(leftLeg);
-                
-                const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
-                rightLeg.position.set(0.25, 0.25, 0);
-                rightLeg.castShadow = true;
-                group.add(rightLeg);
-                
-                // Add Granny to scene
-                granny = group;
-                granny.position.set(10, 0, 10);
-                scene.add(granny);
-                
-                // Set initial Granny position
-                gameState.granny.position = { x: 10, y: 0, z: 10 };
-                
-                resolve();
-            });
-        }
-
-        // Create items
-        function createItems() {
-            const itemData = [
-                { type: 'key', position: { x: -12, y: 1, z: 0 }, icon: '🔑' },
-                { type: 'hammer', position: { x: 12, y: 1, z: -8 }, icon: '🔨' },
-                { type: 'screwdriver', position: { x: 15, y: 1, z: 12 }, icon: '🪛' },
-                { type: 'battery', position: { x: -12, y: 1, z: 15 }, icon: '🔋' },
-                { type: 'masterKey', position: { x: -12, y: 1, z: -12 }, icon: '🗝️' }
-            ];
-            
-            for (const data of itemData) {
-                createItem(data);
+                updateStatus("Player X's Turn");
+                playerXDisplay.classList.add('active');
+                playerODisplay.classList.remove('active');
             }
-        }
 
-        // Create a single item
-        function createItem(data) {
-            const geometry = new THREE.CylinderGeometry(0.2, 0.2, 0.1, 8);
-            const material = new THREE.MeshStandardMaterial({ 
-                color: 0xFFD700,
-                emissive: 0x333300,
-                emissiveIntensity: 0.5
-            });
-            const item = new THREE.Mesh(geometry, material);
-            item.position.set(data.position.x, data.position.y, data.position.z);
-            item.rotation.x = Math.PI / 2;
-            item.castShadow = true;
-            scene.add(item);
-            
-            // Add glowing effect
-            const glowGeometry = new THREE.CylinderGeometry(0.25, 0.25, 0.05, 16);
-            const glowMaterial = new THREE.MeshBasicMaterial({ 
-                color: 0xFFFF00,
-                transparent: true,
-                opacity: 0.3
-            });
-            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-            glow.position.y = 0.1;
-            glow.rotation.x = Math.PI / 2;
-            item.add(glow);
-            
-            // Add to items list
-            items.push({
-                mesh: item,
-                type: data.type,
-                icon: data.icon,
-                collected: false
-            });
-        }
-
-        // Setup inventory UI
-        function setupInventory() {
-            inventory.innerHTML = '';
-            for (let i = 0; i < 5; i++) {
-                const slot = document.createElement('div');
-                slot.className = 'inventory-slot';
-                slot.id = `slot${i}`;
-                inventory.appendChild(slot);
-            }
-            updateInventory();
-        }
-
-        // Update inventory display
-        function updateInventory() {
-            for (let i = 0; i < 5; i++) {
-                const slot = document.getElementById(`slot${i}`);
-                slot.innerHTML = '';
+            // Handle cell click
+            function handleCellClick(e) {
+                const cell = e.target;
+                const index = parseInt(cell.getAttribute('data-index'));
                 
-                if (i < gameState.player.items.length) {
-                    const item = gameState.player.items[i];
-                    slot.textContent = item.icon;
-                    
-                    // Show count if multiple of same type
-                    if (item.count && item.count > 1) {
-                        const count = document.createElement('div');
-                        count.className = 'item-count';
-                        count.textContent = item.count;
-                        slot.appendChild(count);
+                // Check if cell is already taken or game is not active
+                if (gameState.board[index] !== '' || !gameState.gameActive) {
+                    return;
+                }
+                
+                // Make move
+                makeMove(index, cell);
+            }
+
+            // Make a move
+            function makeMove(index, cell) {
+                // Update board state
+                gameState.board[index] = gameState.currentPlayer;
+                cell.textContent = gameState.currentPlayer;
+                cell.classList.add(gameState.currentPlayer.toLowerCase());
+                
+                // Check for win or draw
+                if (checkWin()) {
+                    endGame(false);
+                    return;
+                }
+                
+                if (checkDraw()) {
+                    endGame(true);
+                    return;
+                }
+                
+                // Switch player
+                switchPlayer();
+            }
+
+            // Check for win
+            function checkWin() {
+                for (let i = 0; i < gameState.winningCombinations.length; i++) {
+                    const [a, b, c] = gameState.winningCombinations[i];
+                    if (
+                        gameState.board[a] !== '' &&
+                        gameState.board[a] === gameState.board[b] &&
+                        gameState.board[a] === gameState.board[c]
+                    ) {
+                        // Highlight winning cells
+                        cells[a].classList.add('win');
+                        cells[b].classList.add('win');
+                        cells[c].classList.add('win');
+                        return true;
                     }
                 }
+                return false;
             }
-        }
 
-        // Setup event listeners
-        function setupEventListeners() {
-            // Keyboard events
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'w' || e.key === 'W') gameState.keys.w = true;
-                if (e.key === 'a' || e.key === 'A') gameState.keys.a = true;
-                if (e.key === 's' || e.key === 'S') gameState.keys.s = true;
-                if (e.key === 'd' || e.key === 'D') gameState.keys.d = true;
-                if (e.key === 'h' || e.key === 'H') gameState.keys.h = true;
-                if (e.key === 'm' || e.key === 'M') toggleMap();
-                if (e.key === 'e' || e.key === 'E') useItem();
-                if (e.key === ' ') gameState.keys.space = true;
-            });
-            
-            document.addEventListener('keyup', (e) => {
-                if (e.key === 'w' || e.key === 'W') gameState.keys.w = false;
-                if (e.key === 'a' || e.key === 'A') gameState.keys.a = false;
-                if (e.key === 's' || e.key === 'S') gameState.keys.s = false;
-                if (e.key === 'd' || e.key === 'D') gameState.keys.d = false;
-                if (e.key === 'h' || e.key === 'H') gameState.keys.h = false;
-                if (e.key === ' ') gameState.keys.space = false;
-            });
-            
-            // Mouse events for looking around
-            document.addEventListener('mousemove', (e) => {
-                if (document.pointerLockElement === renderer.domElement) {
-                    gameState.mouse.x += e.movementX * 0.002;
-                    gameState.mouse.y += e.movementY * 0.002;
-                    
-                    // Limit vertical look
-                    gameState.mouse.y = Math.max(-Math.PI/2, Math.min(Math.PI/2, gameState.mouse.y));
-                    
-                    // Update camera rotation
-                    camera.rotation.order = 'YXZ';
-                    camera.rotation.y = -gameState.mouse.x;
-                    camera.rotation.x = -gameState.mouse.y;
-                }
-            });
-            
-            // Pointer lock
-            renderer.domElement.addEventListener('click', () => {
-                renderer.domElement.requestPointerLock();
-            });
-            
-            // Window resize
-            window.addEventListener('resize', () => {
-                camera.aspect = gameContainer.clientWidth / gameContainer.clientHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(gameContainer.clientWidth, gameContainer.clientHeight);
-            });
-        }
-
-        // Toggle mini-map
-        function toggleMap() {
-            gameState.mapVisible = !gameState.mapVisible;
-            miniMap.style.display = gameState.mapVisible ? 'block' : 'none';
-        }
-
-        // Use item from inventory
-        function useItem() {
-            if (gameState.player.items.length === 0) return;
-            
-            const item = gameState.player.items[0]; // Use first item
-            
-            // Check if player is near a locked door (simplified)
-            // In a full implementation, you'd check distance to doors
-            if (item.type === 'key' || item.type === 'masterKey') {
-                // Unlock nearby doors logic would go here
-                removeItemFromInventory(item.type);
+            // Check for draw
+            function checkDraw() {
+                return !gameState.board.includes('');
             }
-            
-            // Check if player is near storage room with hammer
-            if (item.type === 'hammer') {
-                // Break storage room door logic would go here
-                removeItemFromInventory(item.type);
-            }
-        }
 
-        // Remove item from inventory
-        function removeItemFromInventory(itemType) {
-            const index = gameState.player.items.findIndex(item => item.type === itemType);
-            if (index !== -1) {
-                gameState.player.items.splice(index, 1);
-                updateInventory();
-            }
-        }
-
-        // Main game loop
-        function gameLoop() {
-            if (gameState.gameOver || gameState.gameWin) {
-                return;
-            }
-            
-            const delta = gameState.clock.getDelta();
-            
-            update(delta);
-            render();
-            requestAnimationFrame(gameLoop);
-        }
-
-        // Update game state
-        function update(delta) {
-            updatePlayer(delta);
-            updateGranny(delta);
-            updateItems();
-            updateTime(delta);
-            checkCollisions();
-            checkWinCondition();
-        }
-
-        // Update player
-        function updatePlayer(delta) {
-            if (gameState.player.hidden) {
-                gameState.player.hiddenTime++;
-                // Reduce Granny's awareness when hidden
-                gameState.granny.awareness = Math.max(0, gameState.granny.awareness - 0.5 * delta);
+            // Switch player
+            function switchPlayer() {
+                gameState.currentPlayer = gameState.currentPlayer === 'X' ? 'O' : 'X';
+                updateStatus(`Player ${gameState.currentPlayer}'s Turn`);
                 
-                // Auto exit hiding after 5 seconds
-                if (gameState.player.hiddenTime > 5) {
-                    gameState.player.hidden = false;
-                    gameState.player.hiddenTime = 0;
+                // Update active player display
+                if (gameState.currentPlayer === 'X') {
+                    playerXDisplay.classList.add('active');
+                    playerODisplay.classList.remove('active');
+                } else {
+                    playerXDisplay.classList.remove('active');
+                    playerODisplay.classList.add('active');
                 }
-                return;
             }
-            
-            // Movement direction based on camera orientation
-            const direction = new THREE.Vector3();
-            const forward = new THREE.Vector3();
-            const right = new THREE.Vector3();
-            
-            camera.getWorldDirection(forward);
-            forward.y = 0;
-            forward.normalize();
-            
-            right.crossVectors(forward, new THREE.Vector3(0, 1, 0));
-            
-            // Apply movement
-            const speed = 5 * delta;
-            if (gameState.keys.w) {
-                direction.add(forward);
-            }
-            if (gameState.keys.s) {
-                direction.sub(forward);
-            }
-            if (gameState.keys.a) {
-                direction.sub(right);
-            }
-            if (gameState.keys.d) {
-                direction.add(right);
-            }
-            
-            // Normalize diagonal movement
-            if (direction.length() > 0) {
-                direction.normalize();
-                direction.multiplyScalar(speed);
-            }
-            
-            // Apply gravity and jumping
-            gameState.player.velocity.y -= 9.8 * delta; // Gravity
-            
-            if (gameState.keys.space && gameState.player.onGround) {
-                gameState.player.velocity.y = 5;
-                gameState.player.onGround = false;
-            }
-            
-            // Update position
-            gameState.player.position.x += direction.x;
-            gameState.player.position.z += direction.z;
-            gameState.player.position.y += gameState.player.velocity.y * delta;
-            
-            // Ground collision
-            if (gameState.player.position.y <= 0) {
-                gameState.player.position.y = 0;
-                gameState.player.velocity.y = 0;
-                gameState.player.onGround = true;
-            }
-            
-            // Update camera position
-            camera.position.set(
-                gameState.player.position.x,
-                gameState.player.position.y + 1.7, // Eye level
-                gameState.player.position.z
-            );
-            
-            // Update player mesh for mini-map
-            player.position.copy(camera.position);
-            player.position.y = 0; // Keep on ground in mini-map
-            
-            // Check for hiding spot interaction
-            if (gameState.keys.h) {
-                // Simplified hiding - just hide in place
-                gameState.player.hidden = true;
-                gameState.player.hiddenTime = 0;
-            }
-        }
 
-        // Update Granny AI
-        function updateGranny(delta) {
-            const granny = gameState.granny;
-            const player = gameState.player;
-            
-            // Calculate distance to player
-            const dx = player.position.x - granny.position.x;
-            const dz = player.position.z - granny.position.z;
-            const distance = Math.sqrt(dx * dx + dz * dz);
-            
-            // Update Granny's state based on player visibility
-            if (!player.hidden && distance < 10 && hasLineOfSight(granny, player)) {
-                granny.state = 'chase';
-                granny.awareness = 100;
-                granny.lastSeenPlayerPosition = { ...player.position };
-                granny.searchTimer = 0;
-            } else if (granny.state === 'chase') {
-                granny.state = 'search';
-                granny.searchTimer = 5; // 5 seconds of searching
-            } else if (granny.state === 'search' && granny.searchTimer > 0) {
-                granny.searchTimer -= delta;
-            } else {
-                granny.state = 'patrol';
-                granny.awareness = Math.max(0, granny.awareness - 0.2 * delta);
-            }
-            
-            // Move Granny based on state
-            switch (granny.state) {
-                case 'patrol':
-                    patrolBehavior(delta);
-                    break;
-                case 'chase':
-                    chaseBehavior(delta);
-                    break;
-                case 'search':
-                    searchBehavior(delta);
-                    break;
-            }
-            
-            // Update Granny mesh position
-            granny.position.set(granny.position.x, 0, granny.position.z);
-            
-            // Make Granny look at player when chasing
-            if (granny.state === 'chase') {
-                granny.lookAt(new THREE.Vector3(player.position.x, 0, player.position.z));
-            }
-            
-            // Check if caught player
-            if (distance < 2) {
-                playerCaught();
-            }
-        }
-
-        // Granny patrol behavior
-        function patrolBehavior(delta) {
-            const granny = gameState.granny;
-            
-            // If no target or reached target, set new random target
-            if (!granny.targetPosition.x || 
-                (Math.abs(granny.position.x - granny.targetPosition.x) < 1 && 
-                 Math.abs(granny.position.z - granny.targetPosition.z) < 1)) {
+            // End the game
+            function endGame(isDraw) {
+                gameState.gameActive = false;
                 
-                // Get a random room
-                const randomRoom = rooms[Math.floor(Math.random() * rooms.length)];
+                if (isDraw) {
+                    updateStatus("It's a Draw!", "draw-message");
+                } else {
+                    updateStatus(`Player ${gameState.currentPlayer} Wins!`, "win-message");
+                    // Update score
+                    gameState.scores[gameState.currentPlayer]++;
+                    updateScores();
+                }
+            }
+
+            // Update status display
+            function updateStatus(message, className = '') {
+                statusDisplay.textContent = message;
+                statusDisplay.className = `status ${className}`;
+            }
+
+            // Update score display
+            function updateScores() {
+                scoreXDisplay.textContent = gameState.scores.X;
+                scoreODisplay.textContent = gameState.scores.O;
+            }
+
+            // Reset the board for a new round
+            function resetBoard() {
+                gameState.board = ['', '', '', '', '', '', '', '', ''];
+                gameState.currentPlayer = 'X';
+                gameState.gameActive = true;
                 
-                // Set target to random position in that room
-                granny.targetPosition.x = randomRoom.position.x + (Math.random() - 0.5) * (randomRoom.size.width - 2);
-                granny.targetPosition.z = randomRoom.position.z + (Math.random() - 0.5) * (randomRoom.size.depth - 2);
+                initGame();
             }
-            
-            // Move towards target
-            const dx = granny.targetPosition.x - granny.position.x;
-            const dz = granny.targetPosition.z - granny.position.z;
-            const distance = Math.sqrt(dx * dx + dz * dz);
-            
-            if (distance > 0) {
-                const speed = 1.5 * delta;
-                granny.position.x += (dx / distance) * speed;
-                granny.position.z += (dz / distance) * speed;
-            }
-        }
 
-        // Granny chase behavior
-        function chaseBehavior(delta) {
-            const granny = gameState.granny;
-            const player = gameState.player;
-            
-            // Move towards player
-            const dx = player.position.x - granny.position.x;
-            const dz = player.position.z - granny.position.z;
-            const distance = Math.sqrt(dx * dx + dz * dz);
-            
-            if (distance > 0) {
-                const speed = 2.5 * delta; // Faster when chasing
-                granny.position.x += (dx / distance) * speed;
-                granny.position.z += (dz / distance) * speed;
+            // Start a completely new game
+            function newGame() {
+                gameState.scores.X = 0;
+                gameState.scores.O = 0;
+                updateScores();
+                resetBoard();
             }
-        }
 
-        // Granny search behavior
-        function searchBehavior(delta) {
-            const granny = gameState.granny;
-            
-            // Move towards last seen player position
-            const dx = granny.lastSeenPlayerPosition.x - granny.position.x;
-            const dz = granny.lastSeenPlayerPosition.z - granny.position.z;
-            const distance = Math.sqrt(dx * dx + dz * dz);
-            
-            if (distance > 0) {
-                const speed = 1.5 * delta;
-                granny.position.x += (dx / distance) * speed;
-                granny.position.z += (dz / distance) * speed;
-            }
-            
-            // Wander a bit while searching
-            if (Math.random() < 0.02) {
-                granny.lastSeenPlayerPosition.x += (Math.random() - 0.5) * 5;
-                granny.lastSeenPlayerPosition.z += (Math.random() - 0.5) * 5;
-            }
-        }
+            // Event listeners for buttons
+            resetButton.addEventListener('click', resetBoard);
+            newGameButton.addEventListener('click', newGame);
 
-        // Check if Granny has line of sight to player
-        function hasLineOfSight(granny, player) {
-            // Simple line of sight check
-            // In a full implementation, you'd check against walls
-            const dx = player.position.x - granny.position.x;
-            const dz = player.position.z - granny.position.z;
-            const distance = Math.sqrt(dx * dx + dz * dz);
-            
-            // Simple check - if player is within field of view
-            return distance < 15;
-        }
-
-        // Update item collection
-        function updateItems() {
-            for (const item of items) {
-                if (!item.collected) {
-                    const dx = gameState.player.position.x - item.mesh.position.x;
-                    const dz = gameState.player.position.z - item.mesh.position.z;
-                    const distance = Math.sqrt(dx * dx + dz * dz);
-                    
-                    if (distance < 1.5) {
-                        item.collected = true;
-                        item.mesh.visible = false;
-                        
-                        // Check if player already has this item type
-                        const existingItem = gameState.player.items.find(i => i.type === item.type);
-                        if (existingItem) {
-                            existingItem.count = (existingItem.count || 1) + 1;
-                        } else {
-                            gameState.player.items.push({
-                                type: item.type,
-                                icon: item.icon,
-                                count: 1
-                            });
-                        }
-                        
-                        updateInventory();
-                    }
-                }
-            }
-        }
-
-        // Update game time
-        function updateTime(delta) {
-            gameState.time += delta * 0.1; // Time passes slowly
-            
-            // Advance day every 24 "hours"
-            if (gameState.time >= 24) {
-                gameState.time = 7; // Reset to 7 AM
-                gameState.day++;
-                
-                // Game over after 5 days
-                if (gameState.day > 5) {
-                    gameState.gameOver = true;
-                    gameOverScreen.style.display = 'flex';
-                }
-            }
-            
-            // Update day counter display
-            const hours = Math.floor(gameState.time);
-            const minutes = Math.floor((gameState.time - hours) * 60);
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            const displayHours = hours % 12 || 12;
-            dayCounter.textContent = `Day ${gameState.day} - ${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-            
-            // Update lighting based on time
-            updateLighting();
-        }
-
-        // Update lighting based on time of day
-        function updateLighting() {
-            const hour = gameState.time;
-            let intensity = 0.3;
-            
-            if (hour >= 6 && hour < 18) {
-                // Daytime
-                intensity = 0.8 - Math.abs(hour - 12) * 0.05;
-            } else if (hour >= 18 && hour < 20) {
-                // Evening
-                intensity = 0.3 - (hour - 18) * 0.1;
-            } else {
-                // Night
-                intensity = 0.1;
-            }
-            
-            // Update directional light intensity
-            scene.children.forEach(child => {
-                if (child instanceof THREE.DirectionalLight) {
-                    child.intensity = intensity;
-                }
-            });
-        }
-
-        // Check for collisions
-        function checkCollisions() {
-            // Simplified collision with walls
-            for (const wall of walls) {
-                const dx = gameState.player.position.x - wall.position.x;
-                const dz = gameState.player.position.z - wall.position.z;
-                const distance = Math.sqrt(dx * dx + dz * dz);
-                
-                // Simple distance-based collision
-                if (distance < 2) {
-                    // Push player away from wall
-                    const pushForce = 0.1;
-                    gameState.player.position.x += (dx / distance) * pushForce;
-                    gameState.player.position.z += (dz / distance) * pushForce;
-                }
-            }
-        }
-
-        // Check if player has won
-        function checkWinCondition() {
-            // Check if player has all items and is near an exit
-            const hasAllItems = 
-                gameState.player.items.some(i => i.type === 'key') &&
-                gameState.player.items.some(i => i.type === 'masterKey');
-            
-            // Check if player is near the front door (simplified)
-            const frontDoor = { x: 0, y: 0, z: -10 };
-            const dx = gameState.player.position.x - frontDoor.x;
-            const dz = gameState.player.position.z - frontDoor.z;
-            const distance = Math.sqrt(dx * dx + dz * dz);
-            
-            if (hasAllItems && distance < 3) {
-                gameState.gameWin = true;
-                gameWinScreen.style.display = 'flex';
-            }
-        }
-
-        // Player caught by Granny
-        function playerCaught() {
-            gameState.player.health -= 25;
-            healthFill.style.width = `${gameState.player.health}%`;
-            
-            // Reset player position to bedroom
-            gameState.player.position = { x: -12, y: 0, z: 0 };
-            gameState.player.hidden = false;
-            
-            // Reset Granny
-            gameState.granny.position = { x: 10, y: 0, z: 10 };
-            gameState.granny.state = 'patrol';
-            gameState.granny.awareness = 0;
-            
-            // Game over if health reaches 0
-            if (gameState.player.health <= 0) {
-                gameState.gameOver = true;
-                gameOverScreen.style.display = 'flex';
-            }
-        }
-
-        // Render the game
-        function render() {
-            // Update mini-map if visible
-            if (gameState.mapVisible) {
-                drawMiniMap();
-            }
-            
-            // Render the scene
-            renderer.render(scene, camera);
-        }
-
-        // Draw mini-map
-        function drawMiniMap() {
-            const mapCtx = miniMap.getContext('2d');
-            mapCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            mapCtx.fillRect(0, 0, miniMap.width, miniMap.height);
-            
-            // Calculate scale
-            const scaleX = miniMap.width / 40;
-            const scaleY = miniMap.height / 40;
-            const offsetX = miniMap.width / 2;
-            const offsetY = miniMap.height / 2;
-            
-            // Draw rooms
-            mapCtx.strokeStyle = '#555';
-            mapCtx.lineWidth = 2;
-            
-            for (const room of rooms) {
-                mapCtx.strokeRect(
-                    offsetX + room.position.x * scaleX - room.size.width * scaleX / 2,
-                    offsetY + room.position.z * scaleY - room.size.depth * scaleY / 2,
-                    room.size.width * scaleX,
-                    room.size.depth * scaleY
-                );
-            }
-            
-            // Draw player
-            mapCtx.fillStyle = '#00FF00';
-            mapCtx.beginPath();
-            mapCtx.arc(
-                offsetX + gameState.player.position.x * scaleX,
-                offsetY + gameState.player.position.z * scaleY,
-                3, 0, Math.PI * 2
-            );
-            mapCtx.fill();
-            
-            // Draw Granny
-            mapCtx.fillStyle = '#FF0000';
-            mapCtx.beginPath();
-            mapCtx.arc(
-                offsetX + gameState.granny.position.x * scaleX,
-                offsetY + gameState.granny.position.z * scaleY,
-                3, 0, Math.PI * 2
-            );
-            mapCtx.fill();
-            
-            // Draw items
-            for (const item of items) {
-                if (!item.collected) {
-                    mapCtx.fillStyle = '#FFD700';
-                    mapCtx.beginPath();
-                    mapCtx.arc(
-                        offsetX + item.mesh.position.x * scaleX,
-                        offsetY + item.mesh.position.z * scaleY,
-                        2, 0, Math.PI * 2
-                    );
-                    mapCtx.fill();
-                }
-            }
-        }
-
-        // Restart game
-        function restartGame() {
-            // Reset game state
-            gameState.player.position = { x: -12, y: 0, z: 0 };
-            gameState.player.health = 100;
-            gameState.player.hidden = false;
-            gameState.player.hiddenTime = 0;
-            gameState.player.items = [];
-            
-            gameState.granny.position = { x: 10, y: 0, z: 10 };
-            gameState.granny.state = 'patrol';
-            gameState.granny.awareness = 0;
-            
-            gameState.day = 1;
-            gameState.time = 7.0;
-            gameState.gameOver = false;
-            gameState.gameWin = false;
-            
-            // Reset items
-            for (const item of items) {
-                item.collected = false;
-                item.mesh.visible = true;
-            }
-            
-            // Update UI
-            healthFill.style.width = '100%';
-            gameOverScreen.style.display = 'none';
-            gameWinScreen.style.display = 'none';
-            updateInventory();
-            
-            // Reset camera
-            camera.position.set(gameState.player.position.x, 1.7, gameState.player.position.z);
-            camera.rotation.set(0, 0, 0);
-            gameState.mouse.x = 0;
-            gameState.mouse.y = 0;
-            
-            // Restart game loop
-            gameState.clock = new THREE.Clock();
-            gameLoop();
-        }
-
-        // Start the game
-        init();
+            // Initialize the game when page loads
+            initGame();
+        });
     </script>
 </body>
 </html>
