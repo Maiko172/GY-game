@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Granny Horror Game</title>
+    <title>3D Granny Horror Game</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -12,20 +13,21 @@
         }
         
         body {
-            background-color: #111;
+            background-color: #000;
             color: #fff;
             font-family: 'Courier New', monospace;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            overflow: hidden;
         }
         
-        .game-container {
+        #gameContainer {
             position: relative;
-            width: 800px;
+            width: 100%;
+            max-width: 1000px;
             height: 600px;
             margin: 20px auto;
             border: 2px solid #444;
@@ -33,8 +35,9 @@
         }
         
         #gameCanvas {
-            background-color: #000;
             display: block;
+            width: 100%;
+            height: 100%;
         }
         
         .ui-overlay {
@@ -156,12 +159,41 @@
             background-color: rgba(0, 0, 0, 0.7);
             padding: 2px 4px;
         }
+        
+        .loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 30;
+        }
+        
+        .loading-bar {
+            width: 300px;
+            height: 20px;
+            background-color: #333;
+            border: 1px solid #555;
+            margin-top: 20px;
+        }
+        
+        .loading-fill {
+            height: 100%;
+            width: 0%;
+            background-color: #8B0000;
+            transition: width 0.3s;
+        }
     </style>
 </head>
 <body>
-    <h1>Granny Horror Game</h1>
-    <div class="game-container">
-        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <h1>3D Granny Horror Game</h1>
+    <div id="gameContainer">
+        <div id="gameCanvas"></div>
         
         <div class="ui-overlay">
             <div class="health-bar">
@@ -171,7 +203,7 @@
         </div>
         
         <div class="instructions">
-            <p>WASD: Move | H: Hide in Closet | M: Toggle Map | E: Use Item</p>
+            <p>WASD: Move | Mouse: Look | H: Hide | M: Map | E: Use Item | SPACE: Jump</p>
         </div>
         
         <div class="mini-map" id="miniMap"></div>
@@ -191,54 +223,54 @@
             <p>You survived Granny's house!</p>
             <button class="restart-btn" onclick="restartGame()">Play Again</button>
         </div>
+        
+        <div class="loading" id="loading">
+            <h2>Loading 3D Granny Horror Game...</h2>
+            <div class="loading-bar">
+                <div class="loading-fill" id="loadingFill"></div>
+            </div>
+        </div>
     </div>
 
     <script>
         // Game variables
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+        const gameContainer = document.getElementById('gameContainer');
         const healthFill = document.getElementById('healthFill');
         const dayCounter = document.getElementById('dayCounter');
         const miniMap = document.getElementById('miniMap');
         const inventory = document.getElementById('inventory');
         const gameOverScreen = document.getElementById('gameOver');
         const gameWinScreen = document.getElementById('gameWin');
+        const loadingScreen = document.getElementById('loading');
+        const loadingFill = document.getElementById('loadingFill');
+        
+        // Three.js variables
+        let scene, camera, renderer, controls;
+        let player, granny;
+        let rooms = [];
+        let walls = [];
+        let doors = [];
+        let hidingSpots = [];
+        let items = [];
         
         // Game state
         let gameState = {
             player: {
-                x: 400,
-                y: 300,
-                width: 20,
-                height: 30,
-                speed: 3,
+                position: { x: 0, y: 0, z: 0 },
                 health: 100,
                 hidden: false,
                 hiddenTime: 0,
-                items: []
+                items: [],
+                velocity: { x: 0, y: 0, z: 0 },
+                onGround: false
             },
             granny: {
-                x: 200,
-                y: 150,
-                width: 25,
-                height: 40,
-                speed: 1.5,
+                position: { x: 0, y: 0, z: 0 },
                 state: 'patrol', // patrol, chase, search
-                targetX: 0,
-                targetY: 0,
+                targetPosition: { x: 0, y: 0, z: 0 },
                 awareness: 0,
-                lastSeenPlayerX: 0,
-                lastSeenPlayerY: 0,
+                lastSeenPlayerPosition: { x: 0, y: 0, z: 0 },
                 searchTimer: 0
-            },
-            map: {
-                width: 1600,
-                height: 1200,
-                rooms: [],
-                walls: [],
-                doors: [],
-                hidingSpots: [],
-                items: []
             },
             keys: {
                 w: false,
@@ -246,122 +278,362 @@
                 s: false,
                 d: false,
                 h: false,
-                m: false
+                m: false,
+                space: false
             },
             day: 1,
             time: 7.0, // 24-hour format
             gameOver: false,
             gameWin: false,
             mapVisible: false,
-            sounds: {
-                ambient: null,
-                footsteps: null,
-                granny: null,
-                heartbeat: null
-            }
+            mouse: { x: 0, y: 0 },
+            clock: new THREE.Clock()
         };
 
         // Initialize the game
-        function init() {
-            createMap();
-            createItems();
+        async function init() {
+            // Set up Three.js scene
+            setupScene();
+            
+            // Create the game world
+            await createWorld();
+            
+            // Set up game systems
             setupInventory();
             setupEventListeners();
+            
+            // Hide loading screen
+            loadingScreen.style.display = 'none';
+            
+            // Start game loop
             gameLoop();
         }
 
-        // Create the game map with rooms and walls
-        function createMap() {
-            // Define rooms
-            const rooms = [
-                { name: 'Bedroom', x: 100, y: 100, width: 300, height: 300, color: '#2a1f4a' },
-                { name: 'Hallway', x: 400, y: 100, width: 200, height: 600, color: '#3a2f5a' },
-                { name: 'Living Room', x: 600, y: 100, width: 400, height: 300, color: '#2a3f4a' },
-                { name: 'Kitchen', x: 600, y: 400, width: 400, height: 300, color: '#4a2f3a' },
-                { name: 'Bathroom', x: 100, y: 400, width: 300, height: 200, color: '#2a4a3f' },
-                { name: 'Storage', x: 100, y: 600, width: 300, height: 200, color: '#4a4a2a' }
-            ];
+        // Set up Three.js scene
+        function setupScene() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x111122);
+            scene.fog = new THREE.Fog(0x111122, 10, 50);
             
-            gameState.map.rooms = rooms;
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, gameContainer.clientWidth / gameContainer.clientHeight, 0.1, 1000);
+            camera.position.set(0, 5, 0);
             
-            // Define walls (collision boundaries)
-            // Outer walls
-            gameState.map.walls.push({ x: 0, y: 0, width: 1600, height: 20 }); // Top
-            gameState.map.walls.push({ x: 0, y: 0, width: 20, height: 1200 }); // Left
-            gameState.map.walls.push({ x: 0, y: 1180, width: 1600, height: 20 }); // Bottom
-            gameState.map.walls.push({ x: 1580, y: 0, width: 20, height: 1200 }); // Right
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(gameContainer.clientWidth, gameContainer.clientHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('gameCanvas').appendChild(renderer.domElement);
             
-            // Room walls
-            gameState.map.walls.push({ x: 100, y: 100, width: 300, height: 20 }); // Bedroom top
-            gameState.map.walls.push({ x: 100, y: 100, width: 20, height: 300 }); // Bedroom left
-            gameState.map.walls.push({ x: 380, y: 100, width: 20, height: 300 }); // Bedroom right
-            gameState.map.walls.push({ x: 100, y: 380, width: 300, height: 20 }); // Bedroom bottom
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+            scene.add(ambientLight);
             
-            gameState.map.walls.push({ x: 400, y: 100, width: 200, height: 20 }); // Hallway top
-            gameState.map.walls.push({ x: 400, y: 100, width: 20, height: 600 }); // Hallway left
-            gameState.map.walls.push({ x: 580, y: 100, width: 20, height: 600 }); // Hallway right
-            gameState.map.walls.push({ x: 400, y: 680, width: 200, height: 20 }); // Hallway bottom
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 50;
+            directionalLight.shadow.camera.left = -20;
+            directionalLight.shadow.camera.right = 20;
+            directionalLight.shadow.camera.top = 20;
+            directionalLight.shadow.camera.bottom = -20;
+            scene.add(directionalLight);
             
-            // Add more walls to create proper room separation
-            gameState.map.walls.push({ x: 600, y: 100, width: 400, height: 20 }); // Living Room top
-            gameState.map.walls.push({ x: 600, y: 100, width: 20, height: 300 }); // Living Room left
-            gameState.map.walls.push({ x: 980, y: 100, width: 20, height: 300 }); // Living Room right
-            gameState.map.walls.push({ x: 600, y: 380, width: 400, height: 20 }); // Living Room bottom
-            
-            gameState.map.walls.push({ x: 600, y: 400, width: 400, height: 20 }); // Kitchen top
-            gameState.map.walls.push({ x: 600, y: 400, width: 20, height: 300 }); // Kitchen left
-            gameState.map.walls.push({ x: 980, y: 400, width: 20, height: 300 }); // Kitchen right
-            gameState.map.walls.push({ x: 600, y: 680, width: 400, height: 20 }); // Kitchen bottom
-            
-            gameState.map.walls.push({ x: 100, y: 400, width: 300, height: 20 }); // Bathroom top
-            gameState.map.walls.push({ x: 100, y: 400, width: 20, height: 200 }); // Bathroom left
-            gameState.map.walls.push({ x: 380, y: 400, width: 20, height: 200 }); // Bathroom right
-            gameState.map.walls.push({ x: 100, y: 590, width: 300, height: 20 }); // Bathroom bottom
-            
-            gameState.map.walls.push({ x: 100, y: 600, width: 300, height: 20 }); // Storage top
-            gameState.map.walls.push({ x: 100, y: 600, width: 20, height: 200 }); // Storage left
-            gameState.map.walls.push({ x: 380, y: 600, width: 20, height: 200 }); // Storage right
-            gameState.map.walls.push({ x: 100, y: 780, width: 300, height: 20 }); // Storage bottom
-            
-            // Define doors (openings in walls)
-            gameState.map.doors = [
-                { x: 380, y: 220, width: 20, height: 60, room1: 'Bedroom', room2: 'Hallway', locked: false },
-                { x: 400, y: 220, width: 20, height: 60, room1: 'Hallway', room2: 'Bedroom', locked: false },
-                { x: 580, y: 220, width: 20, height: 60, room1: 'Hallway', room2: 'Living Room', locked: false },
-                { x: 600, y: 220, width: 20, height: 60, room1: 'Living Room', room2: 'Hallway', locked: false },
-                { x: 580, y: 520, width: 20, height: 60, room1: 'Hallway', room2: 'Kitchen', locked: false },
-                { x: 600, y: 520, width: 20, height: 60, room1: 'Kitchen', room2: 'Hallway', locked: false },
-                { x: 380, y: 480, width: 20, height: 60, room1: 'Bathroom', room2: 'Hallway', locked: false },
-                { x: 400, y: 480, width: 20, height: 60, room1: 'Hallway', room2: 'Bathroom', locked: false },
-                { x: 380, y: 680, width: 20, height: 60, room1: 'Storage', room2: 'Hallway', locked: true },
-                { x: 400, y: 680, width: 20, height: 60, room1: 'Hallway', room2: 'Storage', locked: true }
-            ];
-            
-            // Define hiding spots (closets)
-            gameState.map.hidingSpots = [
-                { x: 120, y: 120, width: 60, height: 80, room: 'Bedroom' },
-                { x: 650, y: 120, width: 60, height: 80, room: 'Living Room' },
-                { x: 120, y: 620, width: 60, height: 80, room: 'Storage' }
-            ];
-            
-            // Set player starting position in the bedroom
-            gameState.player.x = 200;
-            gameState.player.y = 200;
-            
-            // Set Granny starting position in the kitchen
-            gameState.granny.x = 700;
-            gameState.granny.y = 500;
+            // Add a point light for creepy atmosphere
+            const pointLight = new THREE.PointLight(0xff0000, 0.5, 30);
+            pointLight.position.set(5, 5, 5);
+            scene.add(pointLight);
         }
 
-        // Create items to collect
-        function createItems() {
-            gameState.map.items = [
-                { x: 250, y: 250, width: 15, height: 15, type: 'key', room: 'Bedroom', collected: false, icon: '🔑' },
-                { x: 750, y: 200, width: 15, height: 15, type: 'hammer', room: 'Living Room', collected: false, icon: '🔨' },
-                { x: 700, y: 550, width: 15, height: 15, type: 'screwdriver', room: 'Kitchen', collected: false, icon: '🪛' },
-                { x: 200, y: 450, width: 15, height: 15, type: 'battery', room: 'Bathroom', collected: false, icon: '🔋' },
-                { x: 200, y: 650, width: 15, height: 15, type: 'masterKey', room: 'Storage', collected: false, icon: '🗝️' }
+        // Create the game world
+        async function createWorld() {
+            // Create floor
+            const floorGeometry = new THREE.PlaneGeometry(100, 100);
+            const floorMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x333333,
+                roughness: 0.8,
+                metalness: 0.2
+            });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+            
+            // Create rooms
+            await createRooms();
+            
+            // Create player
+            createPlayer();
+            
+            // Create Granny
+            await createGranny();
+            
+            // Create items
+            createItems();
+            
+            // Update loading progress
+            loadingFill.style.width = '100%';
+        }
+
+        // Create rooms
+        async function createRooms() {
+            const roomData = [
+                { name: 'Bedroom', position: { x: -15, z: 0 }, size: { width: 10, depth: 10 }, color: 0x2a1f4a },
+                { name: 'Hallway', position: { x: 0, z: 0 }, size: { width: 5, depth: 20 }, color: 0x3a2f5a },
+                { name: 'Living Room', position: { x: 10, z: -5 }, size: { width: 15, depth: 10 }, color: 0x2a3f4a },
+                { name: 'Kitchen', position: { x: 10, z: 10 }, size: { width: 15, depth: 10 }, color: 0x4a2f3a },
+                { name: 'Bathroom', position: { x: -15, z: 15 }, size: { width: 10, depth: 8 }, color: 0x2a4a3f },
+                { name: 'Storage', position: { x: -15, z: -15 }, size: { width: 10, depth: 8 }, color: 0x4a4a2a }
             ];
+            
+            for (const data of roomData) {
+                await createRoom(data);
+                loadingFill.style.width = `${(rooms.length / roomData.length) * 70}%`;
+            }
+        }
+
+        // Create a single room
+        function createRoom(data) {
+            return new Promise(resolve => {
+                // Room floor
+                const floorGeometry = new THREE.PlaneGeometry(data.size.width, data.size.depth);
+                const floorMaterial = new THREE.MeshStandardMaterial({ 
+                    color: data.color,
+                    roughness: 0.8,
+                    metalness: 0.2
+                });
+                const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+                floor.rotation.x = -Math.PI / 2;
+                floor.position.set(data.position.x, 0.01, data.position.z);
+                floor.receiveShadow = true;
+                scene.add(floor);
+                
+                // Room walls
+                const wallHeight = 5;
+                const wallThickness = 0.3;
+                
+                // North wall
+                const northWall = createWall(
+                    data.size.width, wallHeight, wallThickness,
+                    data.position.x, wallHeight/2, data.position.z - data.size.depth/2,
+                    0, 0, 0
+                );
+                scene.add(northWall);
+                walls.push(northWall);
+                
+                // South wall
+                const southWall = createWall(
+                    data.size.width, wallHeight, wallThickness,
+                    data.position.x, wallHeight/2, data.position.z + data.size.depth/2,
+                    0, 0, 0
+                );
+                scene.add(southWall);
+                walls.push(southWall);
+                
+                // East wall
+                const eastWall = createWall(
+                    wallThickness, wallHeight, data.size.depth,
+                    data.position.x + data.size.width/2, wallHeight/2, data.position.z,
+                    0, 0, 0
+                );
+                scene.add(eastWall);
+                walls.push(eastWall);
+                
+                // West wall
+                const westWall = createWall(
+                    wallThickness, wallHeight, data.size.depth,
+                    data.position.x - data.size.width/2, wallHeight/2, data.position.z,
+                    0, 0, 0
+                );
+                scene.add(westWall);
+                walls.push(westWall);
+                
+                // Add room to list
+                rooms.push({
+                    name: data.name,
+                    position: data.position,
+                    size: data.size,
+                    floor: floor,
+                    walls: [northWall, southWall, eastWall, westWall]
+                });
+                
+                resolve();
+            });
+        }
+
+        // Create a wall
+        function createWall(width, height, depth, x, y, z, rx, ry, rz) {
+            const geometry = new THREE.BoxGeometry(width, height, depth);
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0x555555,
+                roughness: 0.7,
+                metalness: 0.3
+            });
+            const wall = new THREE.Mesh(geometry, material);
+            wall.position.set(x, y, z);
+            wall.rotation.set(rx, ry, rz);
+            wall.castShadow = true;
+            wall.receiveShadow = true;
+            return wall;
+        }
+
+        // Create player
+        function createPlayer() {
+            // Player is represented by the camera in first-person view
+            // We'll create a simple capsule to represent the player in the mini-map
+            const geometry = new THREE.CapsuleGeometry(0.5, 1, 4, 8);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0x00ff00,
+                wireframe: true,
+                visible: false // Invisible in main view, only for mini-map
+            });
+            player = new THREE.Mesh(geometry, material);
+            player.position.set(0, 1, 0);
+            scene.add(player);
+            
+            // Set initial player position
+            gameState.player.position = { x: -12, y: 0, z: 0 };
+            camera.position.set(gameState.player.position.x, 1.7, gameState.player.position.z);
+        }
+
+        // Create Granny
+        async function createGranny() {
+            return new Promise(resolve => {
+                // Create a creepy Granny model using basic geometries
+                const group = new THREE.Group();
+                
+                // Body
+                const bodyGeometry = new THREE.CylinderGeometry(0.5, 0.7, 1.5, 8);
+                const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x8B008B });
+                const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                body.position.y = 0.75;
+                body.castShadow = true;
+                group.add(body);
+                
+                // Head
+                const headGeometry = new THREE.SphereGeometry(0.5, 8, 6);
+                const headMaterial = new THREE.MeshStandardMaterial({ color: 0xFFE4B5 });
+                const head = new THREE.Mesh(headGeometry, headMaterial);
+                head.position.y = 1.8;
+                head.castShadow = true;
+                group.add(head);
+                
+                // Creepy face
+                // Eyes
+                const eyeGeometry = new THREE.SphereGeometry(0.1, 6, 6);
+                const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000 });
+                
+                const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+                leftEye.position.set(-0.15, 1.85, 0.4);
+                group.add(leftEye);
+                
+                const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+                rightEye.position.set(0.15, 1.85, 0.4);
+                group.add(rightEye);
+                
+                // Mouth (creepy smile)
+                const mouthGeometry = new THREE.TorusGeometry(0.2, 0.05, 4, 6, Math.PI);
+                const mouthMaterial = new THREE.MeshBasicMaterial({ color: 0x8B0000 });
+                const mouth = new THREE.Mesh(mouthGeometry, mouthMaterial);
+                mouth.position.set(0, 1.7, 0.4);
+                mouth.rotation.x = Math.PI / 2;
+                group.add(mouth);
+                
+                // Arms
+                const armGeometry = new THREE.CylinderGeometry(0.1, 0.1, 1, 6);
+                const armMaterial = new THREE.MeshStandardMaterial({ color: 0x8B008B });
+                
+                const leftArm = new THREE.Mesh(armGeometry, armMaterial);
+                leftArm.position.set(-0.7, 1.2, 0);
+                leftArm.rotation.z = Math.PI / 6;
+                leftArm.castShadow = true;
+                group.add(leftArm);
+                
+                const rightArm = new THREE.Mesh(armGeometry, armMaterial);
+                rightArm.position.set(0.7, 1.2, 0);
+                rightArm.rotation.z = -Math.PI / 6;
+                rightArm.castShadow = true;
+                group.add(rightArm);
+                
+                // Legs
+                const legGeometry = new THREE.CylinderGeometry(0.15, 0.15, 1, 6);
+                const legMaterial = new THREE.MeshStandardMaterial({ color: 0x4B0082 });
+                
+                const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
+                leftLeg.position.set(-0.25, 0.25, 0);
+                leftLeg.castShadow = true;
+                group.add(leftLeg);
+                
+                const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
+                rightLeg.position.set(0.25, 0.25, 0);
+                rightLeg.castShadow = true;
+                group.add(rightLeg);
+                
+                // Add Granny to scene
+                granny = group;
+                granny.position.set(10, 0, 10);
+                scene.add(granny);
+                
+                // Set initial Granny position
+                gameState.granny.position = { x: 10, y: 0, z: 10 };
+                
+                resolve();
+            });
+        }
+
+        // Create items
+        function createItems() {
+            const itemData = [
+                { type: 'key', position: { x: -12, y: 1, z: 0 }, icon: '🔑' },
+                { type: 'hammer', position: { x: 12, y: 1, z: -8 }, icon: '🔨' },
+                { type: 'screwdriver', position: { x: 15, y: 1, z: 12 }, icon: '🪛' },
+                { type: 'battery', position: { x: -12, y: 1, z: 15 }, icon: '🔋' },
+                { type: 'masterKey', position: { x: -12, y: 1, z: -12 }, icon: '🗝️' }
+            ];
+            
+            for (const data of itemData) {
+                createItem(data);
+            }
+        }
+
+        // Create a single item
+        function createItem(data) {
+            const geometry = new THREE.CylinderGeometry(0.2, 0.2, 0.1, 8);
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0xFFD700,
+                emissive: 0x333300,
+                emissiveIntensity: 0.5
+            });
+            const item = new THREE.Mesh(geometry, material);
+            item.position.set(data.position.x, data.position.y, data.position.z);
+            item.rotation.x = Math.PI / 2;
+            item.castShadow = true;
+            scene.add(item);
+            
+            // Add glowing effect
+            const glowGeometry = new THREE.CylinderGeometry(0.25, 0.25, 0.05, 16);
+            const glowMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xFFFF00,
+                transparent: true,
+                opacity: 0.3
+            });
+            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            glow.position.y = 0.1;
+            glow.rotation.x = Math.PI / 2;
+            item.add(glow);
+            
+            // Add to items list
+            items.push({
+                mesh: item,
+                type: data.type,
+                icon: data.icon,
+                collected: false
+            });
         }
 
         // Setup inventory UI
@@ -397,8 +669,9 @@
             }
         }
 
-        // Setup keyboard event listeners
+        // Setup event listeners
         function setupEventListeners() {
+            // Keyboard events
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'w' || e.key === 'W') gameState.keys.w = true;
                 if (e.key === 'a' || e.key === 'A') gameState.keys.a = true;
@@ -407,6 +680,7 @@
                 if (e.key === 'h' || e.key === 'H') gameState.keys.h = true;
                 if (e.key === 'm' || e.key === 'M') toggleMap();
                 if (e.key === 'e' || e.key === 'E') useItem();
+                if (e.key === ' ') gameState.keys.space = true;
             });
             
             document.addEventListener('keyup', (e) => {
@@ -415,10 +689,39 @@
                 if (e.key === 's' || e.key === 'S') gameState.keys.s = false;
                 if (e.key === 'd' || e.key === 'D') gameState.keys.d = false;
                 if (e.key === 'h' || e.key === 'H') gameState.keys.h = false;
+                if (e.key === ' ') gameState.keys.space = false;
+            });
+            
+            // Mouse events for looking around
+            document.addEventListener('mousemove', (e) => {
+                if (document.pointerLockElement === renderer.domElement) {
+                    gameState.mouse.x += e.movementX * 0.002;
+                    gameState.mouse.y += e.movementY * 0.002;
+                    
+                    // Limit vertical look
+                    gameState.mouse.y = Math.max(-Math.PI/2, Math.min(Math.PI/2, gameState.mouse.y));
+                    
+                    // Update camera rotation
+                    camera.rotation.order = 'YXZ';
+                    camera.rotation.y = -gameState.mouse.x;
+                    camera.rotation.x = -gameState.mouse.y;
+                }
+            });
+            
+            // Pointer lock
+            renderer.domElement.addEventListener('click', () => {
+                renderer.domElement.requestPointerLock();
+            });
+            
+            // Window resize
+            window.addEventListener('resize', () => {
+                camera.aspect = gameContainer.clientWidth / gameContainer.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(gameContainer.clientWidth, gameContainer.clientHeight);
             });
         }
 
-        // Toggle mini-map visibility
+        // Toggle mini-map
         function toggleMap() {
             gameState.mapVisible = !gameState.mapVisible;
             miniMap.style.display = gameState.mapVisible ? 'block' : 'none';
@@ -430,27 +733,17 @@
             
             const item = gameState.player.items[0]; // Use first item
             
-            // Check if player is near a locked door
-            for (const door of gameState.map.doors) {
-                if (door.locked && isNear(gameState.player, door, 50)) {
-                    if (item.type === 'key' || item.type === 'masterKey') {
-                        door.locked = false;
-                        removeItemFromInventory(item.type);
-                        // Play unlock sound
-                        return;
-                    }
-                }
+            // Check if player is near a locked door (simplified)
+            // In a full implementation, you'd check distance to doors
+            if (item.type === 'key' || item.type === 'masterKey') {
+                // Unlock nearby doors logic would go here
+                removeItemFromInventory(item.type);
             }
             
             // Check if player is near storage room with hammer
-            const storageDoor = gameState.map.doors.find(d => d.room2 === 'Storage');
-            if (storageDoor && storageDoor.locked && isNear(gameState.player, storageDoor, 50)) {
-                if (item.type === 'hammer') {
-                    storageDoor.locked = false;
-                    removeItemFromInventory(item.type);
-                    // Play break sound
-                    return;
-                }
+            if (item.type === 'hammer') {
+                // Break storage room door logic would go here
+                removeItemFromInventory(item.type);
             }
         }
 
@@ -463,282 +756,281 @@
             }
         }
 
-        // Check if two objects are near each other
-        function isNear(obj1, obj2, distance) {
-            const dx = obj1.x - obj2.x;
-            const dy = obj1.y - obj2.y;
-            return Math.sqrt(dx * dx + dy * dy) < distance;
-        }
-
         // Main game loop
         function gameLoop() {
             if (gameState.gameOver || gameState.gameWin) {
                 return;
             }
             
-            update();
+            const delta = gameState.clock.getDelta();
+            
+            update(delta);
             render();
             requestAnimationFrame(gameLoop);
         }
 
         // Update game state
-        function update() {
-            updatePlayer();
-            updateGranny();
+        function update(delta) {
+            updatePlayer(delta);
+            updateGranny(delta);
             updateItems();
-            updateTime();
+            updateTime(delta);
             checkCollisions();
             checkWinCondition();
         }
 
-        // Update player position and state
-        function updatePlayer() {
+        // Update player
+        function updatePlayer(delta) {
             if (gameState.player.hidden) {
                 gameState.player.hiddenTime++;
                 // Reduce Granny's awareness when hidden
-                gameState.granny.awareness = Math.max(0, gameState.granny.awareness - 0.5);
+                gameState.granny.awareness = Math.max(0, gameState.granny.awareness - 0.5 * delta);
                 
                 // Auto exit hiding after 5 seconds
-                if (gameState.player.hiddenTime > 300) {
+                if (gameState.player.hiddenTime > 5) {
                     gameState.player.hidden = false;
                     gameState.player.hiddenTime = 0;
                 }
                 return;
             }
             
-            let dx = 0;
-            let dy = 0;
+            // Movement direction based on camera orientation
+            const direction = new THREE.Vector3();
+            const forward = new THREE.Vector3();
+            const right = new THREE.Vector3();
             
-            if (gameState.keys.w) dy -= gameState.player.speed;
-            if (gameState.keys.s) dy += gameState.player.speed;
-            if (gameState.keys.a) dx -= gameState.player.speed;
-            if (gameState.keys.d) dx += gameState.player.speed;
+            camera.getWorldDirection(forward);
+            forward.y = 0;
+            forward.normalize();
+            
+            right.crossVectors(forward, new THREE.Vector3(0, 1, 0));
+            
+            // Apply movement
+            const speed = 5 * delta;
+            if (gameState.keys.w) {
+                direction.add(forward);
+            }
+            if (gameState.keys.s) {
+                direction.sub(forward);
+            }
+            if (gameState.keys.a) {
+                direction.sub(right);
+            }
+            if (gameState.keys.d) {
+                direction.add(right);
+            }
             
             // Normalize diagonal movement
-            if (dx !== 0 && dy !== 0) {
-                dx *= 0.707;
-                dy *= 0.707;
+            if (direction.length() > 0) {
+                direction.normalize();
+                direction.multiplyScalar(speed);
             }
             
-            // Check for collisions before moving
-            const newX = gameState.player.x + dx;
-            const newY = gameState.player.y + dy;
+            // Apply gravity and jumping
+            gameState.player.velocity.y -= 9.8 * delta; // Gravity
             
-            if (!checkWallCollision(newX, gameState.player.y)) {
-                gameState.player.x = newX;
+            if (gameState.keys.space && gameState.player.onGround) {
+                gameState.player.velocity.y = 5;
+                gameState.player.onGround = false;
             }
             
-            if (!checkWallCollision(gameState.player.x, newY)) {
-                gameState.player.y = newY;
+            // Update position
+            gameState.player.position.x += direction.x;
+            gameState.player.position.z += direction.z;
+            gameState.player.position.y += gameState.player.velocity.y * delta;
+            
+            // Ground collision
+            if (gameState.player.position.y <= 0) {
+                gameState.player.position.y = 0;
+                gameState.player.velocity.y = 0;
+                gameState.player.onGround = true;
             }
+            
+            // Update camera position
+            camera.position.set(
+                gameState.player.position.x,
+                gameState.player.position.y + 1.7, // Eye level
+                gameState.player.position.z
+            );
+            
+            // Update player mesh for mini-map
+            player.position.copy(camera.position);
+            player.position.y = 0; // Keep on ground in mini-map
             
             // Check for hiding spot interaction
             if (gameState.keys.h) {
-                for (const spot of gameState.map.hidingSpots) {
-                    if (isColliding(gameState.player, spot)) {
-                        gameState.player.hidden = true;
-                        gameState.player.hiddenTime = 0;
-                        break;
-                    }
-                }
+                // Simplified hiding - just hide in place
+                gameState.player.hidden = true;
+                gameState.player.hiddenTime = 0;
             }
-            
-            // Keep player within map bounds
-            gameState.player.x = Math.max(20, Math.min(gameState.map.width - 20, gameState.player.x));
-            gameState.player.y = Math.max(20, Math.min(gameState.map.height - 20, gameState.player.y));
         }
 
         // Update Granny AI
-        function updateGranny() {
+        function updateGranny(delta) {
             const granny = gameState.granny;
             const player = gameState.player;
             
             // Calculate distance to player
-            const dx = player.x - granny.x;
-            const dy = player.y - granny.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
+            const dx = player.position.x - granny.position.x;
+            const dz = player.position.z - granny.position.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
             
             // Update Granny's state based on player visibility
-            if (!player.hidden && distance < 200 && hasLineOfSight(granny, player)) {
+            if (!player.hidden && distance < 10 && hasLineOfSight(granny, player)) {
                 granny.state = 'chase';
                 granny.awareness = 100;
-                granny.lastSeenPlayerX = player.x;
-                granny.lastSeenPlayerY = player.y;
+                granny.lastSeenPlayerPosition = { ...player.position };
                 granny.searchTimer = 0;
             } else if (granny.state === 'chase') {
                 granny.state = 'search';
-                granny.searchTimer = 300; // 5 seconds of searching
+                granny.searchTimer = 5; // 5 seconds of searching
             } else if (granny.state === 'search' && granny.searchTimer > 0) {
-                granny.searchTimer--;
+                granny.searchTimer -= delta;
             } else {
                 granny.state = 'patrol';
-                granny.awareness = Math.max(0, granny.awareness - 0.2);
+                granny.awareness = Math.max(0, granny.awareness - 0.2 * delta);
             }
             
             // Move Granny based on state
             switch (granny.state) {
                 case 'patrol':
-                    patrolBehavior();
+                    patrolBehavior(delta);
                     break;
                 case 'chase':
-                    chaseBehavior();
+                    chaseBehavior(delta);
                     break;
                 case 'search':
-                    searchBehavior();
+                    searchBehavior(delta);
                     break;
             }
             
-            // Keep Granny within map bounds
-            granny.x = Math.max(20, Math.min(gameState.map.width - 20, granny.x));
-            granny.y = Math.max(20, Math.min(gameState.map.height - 20, granny.y));
-        }
-
-        // Granny patrol behavior
-        function patrolBehavior() {
-            const granny = gameState.granny;
+            // Update Granny mesh position
+            granny.position.set(granny.position.x, 0, granny.position.z);
             
-            // If no target or reached target, set new random target
-            if (!granny.targetX || !granny.targetY || 
-                (Math.abs(granny.x - granny.targetX) < 10 && Math.abs(granny.y - granny.targetY) < 10)) {
-                
-                // Get a random room
-                const randomRoom = gameState.map.rooms[Math.floor(Math.random() * gameState.map.rooms.length)];
-                
-                // Set target to random position in that room
-                granny.targetX = randomRoom.x + 50 + Math.random() * (randomRoom.width - 100);
-                granny.targetY = randomRoom.y + 50 + Math.random() * (randomRoom.height - 100);
-            }
-            
-            // Move towards target
-            const dx = granny.targetX - granny.x;
-            const dy = granny.targetY - granny.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance > 0) {
-                granny.x += (dx / distance) * granny.speed;
-                granny.y += (dy / distance) * granny.speed;
-            }
-        }
-
-        // Granny chase behavior
-        function chaseBehavior() {
-            const granny = gameState.granny;
-            const player = gameState.player;
-            
-            // Move towards player
-            const dx = player.x - granny.x;
-            const dy = player.y - granny.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance > 0) {
-                granny.x += (dx / distance) * granny.speed * 1.5; // Faster when chasing
-                granny.y += (dy / distance) * granny.speed * 1.5;
+            // Make Granny look at player when chasing
+            if (granny.state === 'chase') {
+                granny.lookAt(new THREE.Vector3(player.position.x, 0, player.position.z));
             }
             
             // Check if caught player
-            if (distance < 30) {
+            if (distance < 2) {
                 playerCaught();
             }
         }
 
+        // Granny patrol behavior
+        function patrolBehavior(delta) {
+            const granny = gameState.granny;
+            
+            // If no target or reached target, set new random target
+            if (!granny.targetPosition.x || 
+                (Math.abs(granny.position.x - granny.targetPosition.x) < 1 && 
+                 Math.abs(granny.position.z - granny.targetPosition.z) < 1)) {
+                
+                // Get a random room
+                const randomRoom = rooms[Math.floor(Math.random() * rooms.length)];
+                
+                // Set target to random position in that room
+                granny.targetPosition.x = randomRoom.position.x + (Math.random() - 0.5) * (randomRoom.size.width - 2);
+                granny.targetPosition.z = randomRoom.position.z + (Math.random() - 0.5) * (randomRoom.size.depth - 2);
+            }
+            
+            // Move towards target
+            const dx = granny.targetPosition.x - granny.position.x;
+            const dz = granny.targetPosition.z - granny.position.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
+            
+            if (distance > 0) {
+                const speed = 1.5 * delta;
+                granny.position.x += (dx / distance) * speed;
+                granny.position.z += (dz / distance) * speed;
+            }
+        }
+
+        // Granny chase behavior
+        function chaseBehavior(delta) {
+            const granny = gameState.granny;
+            const player = gameState.player;
+            
+            // Move towards player
+            const dx = player.position.x - granny.position.x;
+            const dz = player.position.z - granny.position.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
+            
+            if (distance > 0) {
+                const speed = 2.5 * delta; // Faster when chasing
+                granny.position.x += (dx / distance) * speed;
+                granny.position.z += (dz / distance) * speed;
+            }
+        }
+
         // Granny search behavior
-        function searchBehavior() {
+        function searchBehavior(delta) {
             const granny = gameState.granny;
             
             // Move towards last seen player position
-            const dx = granny.lastSeenPlayerX - granny.x;
-            const dy = granny.lastSeenPlayerY - granny.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
+            const dx = granny.lastSeenPlayerPosition.x - granny.position.x;
+            const dz = granny.lastSeenPlayerPosition.z - granny.position.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
             
             if (distance > 0) {
-                granny.x += (dx / distance) * granny.speed;
-                granny.y += (dy / distance) * granny.speed;
+                const speed = 1.5 * delta;
+                granny.position.x += (dx / distance) * speed;
+                granny.position.z += (dz / distance) * speed;
             }
             
             // Wander a bit while searching
             if (Math.random() < 0.02) {
-                granny.lastSeenPlayerX += (Math.random() - 0.5) * 100;
-                granny.lastSeenPlayerY += (Math.random() - 0.5) * 100;
+                granny.lastSeenPlayerPosition.x += (Math.random() - 0.5) * 5;
+                granny.lastSeenPlayerPosition.z += (Math.random() - 0.5) * 5;
             }
         }
 
         // Check if Granny has line of sight to player
         function hasLineOfSight(granny, player) {
-            // Simple line of sight check - in a real game you'd want to check against walls
-            // For this demo, we'll just use distance and a simple angle check
-            const dx = player.x - granny.x;
-            const dy = player.y - granny.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
+            // Simple line of sight check
+            // In a full implementation, you'd check against walls
+            const dx = player.position.x - granny.position.x;
+            const dz = player.position.z - granny.position.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
             
-            // Check if there's a wall between them (simplified)
-            for (const wall of gameState.map.walls) {
-                // Skip if it's a door that's not locked
-                const isDoor = gameState.map.doors.some(door => 
-                    door.x === wall.x && door.y === wall.y && door.width === wall.width && door.height === wall.height && !door.locked);
-                
-                if (isDoor) continue;
-                
-                // Simple line-rectangle intersection (would need more sophisticated in a real game)
-                if (lineIntersectsRect(granny.x, granny.y, player.x, player.y, wall)) {
-                    return false;
-                }
-            }
-            
-            return true;
-        }
-
-        // Check if a line intersects a rectangle
-        function lineIntersectsRect(x1, y1, x2, y2, rect) {
-            // Check if either endpoint is inside the rectangle
-            if (x1 >= rect.x && x1 <= rect.x + rect.width && y1 >= rect.y && y1 <= rect.y + rect.height) return true;
-            if (x2 >= rect.x && x2 <= rect.x + rect.width && y2 >= rect.y && y2 <= rect.y + rect.height) return true;
-            
-            // Check if the line intersects any of the rectangle's edges
-            return (
-                lineIntersectsLine(x1, y1, x2, y2, rect.x, rect.y, rect.x + rect.width, rect.y) ||
-                lineIntersectsLine(x1, y1, x2, y2, rect.x + rect.width, rect.y, rect.x + rect.width, rect.y + rect.height) ||
-                lineIntersectsLine(x1, y1, x2, y2, rect.x, rect.y + rect.height, rect.x + rect.width, rect.y + rect.height) ||
-                lineIntersectsLine(x1, y1, x2, y2, rect.x, rect.y, rect.x, rect.y + rect.height)
-            );
-        }
-
-        // Check if two lines intersect
-        function lineIntersectsLine(x1, y1, x2, y2, x3, y3, x4, y4) {
-            const den = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
-            if (den === 0) return false; // Lines are parallel
-            
-            const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / den;
-            const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / den;
-            
-            return ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1;
+            // Simple check - if player is within field of view
+            return distance < 15;
         }
 
         // Update item collection
         function updateItems() {
-            for (const item of gameState.map.items) {
-                if (!item.collected && isColliding(gameState.player, item)) {
-                    item.collected = true;
+            for (const item of items) {
+                if (!item.collected) {
+                    const dx = gameState.player.position.x - item.mesh.position.x;
+                    const dz = gameState.player.position.z - item.mesh.position.z;
+                    const distance = Math.sqrt(dx * dx + dz * dz);
                     
-                    // Check if player already has this item type
-                    const existingItem = gameState.player.items.find(i => i.type === item.type);
-                    if (existingItem) {
-                        existingItem.count = (existingItem.count || 1) + 1;
-                    } else {
-                        gameState.player.items.push({
-                            type: item.type,
-                            icon: item.icon,
-                            count: 1
-                        });
+                    if (distance < 1.5) {
+                        item.collected = true;
+                        item.mesh.visible = false;
+                        
+                        // Check if player already has this item type
+                        const existingItem = gameState.player.items.find(i => i.type === item.type);
+                        if (existingItem) {
+                            existingItem.count = (existingItem.count || 1) + 1;
+                        } else {
+                            gameState.player.items.push({
+                                type: item.type,
+                                icon: item.icon,
+                                count: 1
+                            });
+                        }
+                        
+                        updateInventory();
                     }
-                    
-                    updateInventory();
                 }
             }
         }
 
         // Update game time
-        function updateTime() {
-            gameState.time += 0.01; // Time passes slowly
+        function updateTime(delta) {
+            gameState.time += delta * 0.1; // Time passes slowly
             
             // Advance day every 24 "hours"
             if (gameState.time >= 24) {
@@ -758,13 +1050,50 @@
             const ampm = hours >= 12 ? 'PM' : 'AM';
             const displayHours = hours % 12 || 12;
             dayCounter.textContent = `Day ${gameState.day} - ${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+            
+            // Update lighting based on time
+            updateLighting();
+        }
+
+        // Update lighting based on time of day
+        function updateLighting() {
+            const hour = gameState.time;
+            let intensity = 0.3;
+            
+            if (hour >= 6 && hour < 18) {
+                // Daytime
+                intensity = 0.8 - Math.abs(hour - 12) * 0.05;
+            } else if (hour >= 18 && hour < 20) {
+                // Evening
+                intensity = 0.3 - (hour - 18) * 0.1;
+            } else {
+                // Night
+                intensity = 0.1;
+            }
+            
+            // Update directional light intensity
+            scene.children.forEach(child => {
+                if (child instanceof THREE.DirectionalLight) {
+                    child.intensity = intensity;
+                }
+            });
         }
 
         // Check for collisions
         function checkCollisions() {
-            // Player caught by Granny
-            if (!gameState.player.hidden && isColliding(gameState.player, gameState.granny)) {
-                playerCaught();
+            // Simplified collision with walls
+            for (const wall of walls) {
+                const dx = gameState.player.position.x - wall.position.x;
+                const dz = gameState.player.position.z - wall.position.z;
+                const distance = Math.sqrt(dx * dx + dz * dz);
+                
+                // Simple distance-based collision
+                if (distance < 2) {
+                    // Push player away from wall
+                    const pushForce = 0.1;
+                    gameState.player.position.x += (dx / distance) * pushForce;
+                    gameState.player.position.z += (dz / distance) * pushForce;
+                }
             }
         }
 
@@ -776,8 +1105,12 @@
                 gameState.player.items.some(i => i.type === 'masterKey');
             
             // Check if player is near the front door (simplified)
-            const frontDoor = { x: 800, y: 100, width: 50, height: 20 };
-            if (hasAllItems && isNear(gameState.player, frontDoor, 50)) {
+            const frontDoor = { x: 0, y: 0, z: -10 };
+            const dx = gameState.player.position.x - frontDoor.x;
+            const dz = gameState.player.position.z - frontDoor.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
+            
+            if (hasAllItems && distance < 3) {
                 gameState.gameWin = true;
                 gameWinScreen.style.display = 'flex';
             }
@@ -789,13 +1122,11 @@
             healthFill.style.width = `${gameState.player.health}%`;
             
             // Reset player position to bedroom
-            gameState.player.x = 200;
-            gameState.player.y = 200;
+            gameState.player.position = { x: -12, y: 0, z: 0 };
             gameState.player.hidden = false;
             
             // Reset Granny
-            gameState.granny.x = 700;
-            gameState.granny.y = 500;
+            gameState.granny.position = { x: 10, y: 0, z: 10 };
             gameState.granny.state = 'patrol';
             gameState.granny.awareness = 0;
             
@@ -806,132 +1137,15 @@
             }
         }
 
-        // Check if two objects are colliding
-        function isColliding(obj1, obj2) {
-            return obj1.x < obj2.x + obj2.width &&
-                   obj1.x + obj1.width > obj2.x &&
-                   obj1.y < obj2.y + obj2.height &&
-                   obj1.y + obj1.height > obj2.y;
-        }
-
-        // Check for wall collisions
-        function checkWallCollision(x, y) {
-            const player = {
-                x: x,
-                y: y,
-                width: gameState.player.width,
-                height: gameState.player.height
-            };
-            
-            for (const wall of gameState.map.walls) {
-                // Skip if it's a door that's not locked
-                const isDoor = gameState.map.doors.some(door => 
-                    door.x === wall.x && door.y === wall.y && door.width === wall.width && door.height === wall.height && !door.locked);
-                
-                if (isDoor) continue;
-                
-                if (isColliding(player, wall)) {
-                    return true;
-                }
-            }
-            
-            return false;
-        }
-
         // Render the game
         function render() {
-            // Clear canvas
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Calculate camera offset to follow player
-            const cameraX = gameState.player.x - canvas.width / 2;
-            const cameraY = gameState.player.y - canvas.height / 2;
-            
-            // Draw rooms
-            for (const room of gameState.map.rooms) {
-                ctx.fillStyle = room.color;
-                ctx.fillRect(room.x - cameraX, room.y - cameraY, room.width, room.height);
-                
-                // Draw room name
-                ctx.fillStyle = '#fff';
-                ctx.font = '12px Arial';
-                ctx.fillText(room.name, room.x - cameraX + 10, room.y - cameraY + 20);
-            }
-            
-            // Draw walls
-            ctx.fillStyle = '#555';
-            for (const wall of gameState.map.walls) {
-                ctx.fillRect(wall.x - cameraX, wall.y - cameraY, wall.width, wall.height);
-            }
-            
-            // Draw doors
-            for (const door of gameState.map.doors) {
-                ctx.fillStyle = door.locked ? '#8B0000' : '#8B4513';
-                ctx.fillRect(door.x - cameraX, door.y - cameraY, door.width, door.height);
-            }
-            
-            // Draw hiding spots
-            for (const spot of gameState.map.hidingSpots) {
-                ctx.fillStyle = '#333';
-                ctx.fillRect(spot.x - cameraX, spot.y - cameraY, spot.width, spot.height);
-                ctx.fillStyle = '#666';
-                ctx.fillText('Closet', spot.x - cameraX + 5, spot.y - cameraY + 15);
-            }
-            
-            // Draw items
-            for (const item of gameState.map.items) {
-                if (!item.collected) {
-                    ctx.fillStyle = '#FFD700';
-                    ctx.fillRect(item.x - cameraX, item.y - cameraY, item.width, item.height);
-                    ctx.fillStyle = '#000';
-                    ctx.font = '10px Arial';
-                    ctx.fillText(item.icon, item.x - cameraX + 2, item.y - cameraY + 12);
-                }
-            }
-            
-            // Draw Granny
-            if (!gameState.player.hidden || gameState.granny.state === 'chase') {
-                ctx.fillStyle = gameState.granny.state === 'chase' ? '#8B0000' : '#800080';
-                ctx.fillRect(gameState.granny.x - cameraX, gameState.granny.y - cameraY, gameState.granny.width, gameState.granny.height);
-                
-                // Draw Granny's face
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(gameState.granny.x - cameraX + 5, gameState.granny.y - cameraY + 10, 5, 5);
-                ctx.fillRect(gameState.granny.x - cameraX + 15, gameState.granny.y - cameraY + 10, 5, 5);
-                ctx.fillRect(gameState.granny.x - cameraX + 5, gameState.granny.y - cameraY + 20, 15, 5);
-            }
-            
-            // Draw player
-            if (!gameState.player.hidden) {
-                ctx.fillStyle = '#00FF00';
-                ctx.fillRect(gameState.player.x - cameraX, gameState.player.y - cameraY, gameState.player.width, gameState.player.height);
-                
-                // Draw player face
-                ctx.fillStyle = '#000';
-                ctx.fillRect(gameState.player.x - cameraX + 5, gameState.player.y - cameraY + 10, 5, 5);
-                ctx.fillRect(gameState.player.x - cameraX + 15, gameState.player.y - cameraY + 10, 5, 5);
-                ctx.fillRect(gameState.player.x - cameraX + 5, gameState.player.y - cameraY + 20, 10, 5);
-            } else {
-                // Draw hidden indicator
-                ctx.fillStyle = '#FFFF00';
-                ctx.font = '16px Arial';
-                ctx.fillText('HIDING', gameState.player.x - cameraX - 20, gameState.player.y - cameraY - 10);
-            }
-            
-            // Draw mini-map if visible
+            // Update mini-map if visible
             if (gameState.mapVisible) {
                 drawMiniMap();
             }
             
-            // Draw Granny awareness meter
-            ctx.fillStyle = '#333';
-            ctx.fillRect(10, 40, 150, 20);
-            ctx.fillStyle = `rgb(${Math.floor(gameState.granny.awareness * 2.55)}, ${Math.floor(255 - gameState.granny.awareness * 2.55)}, 0)`;
-            ctx.fillRect(10, 40, gameState.granny.awareness * 1.5, 20);
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px Arial';
-            ctx.fillText('Granny Awareness', 15, 35);
+            // Render the scene
+            renderer.render(scene, camera);
         }
 
         // Draw mini-map
@@ -941,28 +1155,55 @@
             mapCtx.fillRect(0, 0, miniMap.width, miniMap.height);
             
             // Calculate scale
-            const scaleX = miniMap.width / gameState.map.width;
-            const scaleY = miniMap.height / gameState.map.height;
+            const scaleX = miniMap.width / 40;
+            const scaleY = miniMap.height / 40;
+            const offsetX = miniMap.width / 2;
+            const offsetY = miniMap.height / 2;
             
             // Draw rooms
-            for (const room of gameState.map.rooms) {
-                mapCtx.fillStyle = room.color;
-                mapCtx.fillRect(room.x * scaleX, room.y * scaleY, room.width * scaleX, room.height * scaleY);
+            mapCtx.strokeStyle = '#555';
+            mapCtx.lineWidth = 2;
+            
+            for (const room of rooms) {
+                mapCtx.strokeRect(
+                    offsetX + room.position.x * scaleX - room.size.width * scaleX / 2,
+                    offsetY + room.position.z * scaleY - room.size.depth * scaleY / 2,
+                    room.size.width * scaleX,
+                    room.size.depth * scaleY
+                );
             }
             
             // Draw player
             mapCtx.fillStyle = '#00FF00';
-            mapCtx.fillRect(gameState.player.x * scaleX - 2, gameState.player.y * scaleY - 2, 4, 4);
+            mapCtx.beginPath();
+            mapCtx.arc(
+                offsetX + gameState.player.position.x * scaleX,
+                offsetY + gameState.player.position.z * scaleY,
+                3, 0, Math.PI * 2
+            );
+            mapCtx.fill();
             
             // Draw Granny
             mapCtx.fillStyle = '#FF0000';
-            mapCtx.fillRect(gameState.granny.x * scaleX - 2, gameState.granny.y * scaleY - 2, 4, 4);
+            mapCtx.beginPath();
+            mapCtx.arc(
+                offsetX + gameState.granny.position.x * scaleX,
+                offsetY + gameState.granny.position.z * scaleY,
+                3, 0, Math.PI * 2
+            );
+            mapCtx.fill();
             
             // Draw items
-            for (const item of gameState.map.items) {
+            for (const item of items) {
                 if (!item.collected) {
                     mapCtx.fillStyle = '#FFD700';
-                    mapCtx.fillRect(item.x * scaleX - 1, item.y * scaleY - 1, 2, 2);
+                    mapCtx.beginPath();
+                    mapCtx.arc(
+                        offsetX + item.mesh.position.x * scaleX,
+                        offsetY + item.mesh.position.z * scaleY,
+                        2, 0, Math.PI * 2
+                    );
+                    mapCtx.fill();
                 }
             }
         }
@@ -970,15 +1211,13 @@
         // Restart game
         function restartGame() {
             // Reset game state
-            gameState.player.x = 200;
-            gameState.player.y = 200;
+            gameState.player.position = { x: -12, y: 0, z: 0 };
             gameState.player.health = 100;
             gameState.player.hidden = false;
             gameState.player.hiddenTime = 0;
             gameState.player.items = [];
             
-            gameState.granny.x = 700;
-            gameState.granny.y = 500;
+            gameState.granny.position = { x: 10, y: 0, z: 10 };
             gameState.granny.state = 'patrol';
             gameState.granny.awareness = 0;
             
@@ -988,17 +1227,9 @@
             gameState.gameWin = false;
             
             // Reset items
-            for (const item of gameState.map.items) {
+            for (const item of items) {
                 item.collected = false;
-            }
-            
-            // Reset doors
-            for (const door of gameState.map.doors) {
-                if (door.room2 === 'Storage') {
-                    door.locked = true;
-                } else {
-                    door.locked = false;
-                }
+                item.mesh.visible = true;
             }
             
             // Update UI
@@ -1007,7 +1238,14 @@
             gameWinScreen.style.display = 'none';
             updateInventory();
             
+            // Reset camera
+            camera.position.set(gameState.player.position.x, 1.7, gameState.player.position.z);
+            camera.rotation.set(0, 0, 0);
+            gameState.mouse.x = 0;
+            gameState.mouse.y = 0;
+            
             // Restart game loop
+            gameState.clock = new THREE.Clock();
             gameLoop();
         }
 
