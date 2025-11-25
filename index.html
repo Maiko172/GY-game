@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escape Granny's House | Horror Survival Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Courier New', monospace;
+        }
+
+        body {
+            background-color: #0a0a0a;
+            color: #c9c9c9;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(40, 0, 0, 0.3) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(60, 0, 0, 0.2) 0%, transparent 20%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 30px 0;
+            border-bottom: 1px solid #3a0000;
+            position: relative;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            color: #8a0303;
+            text-shadow: 0 0 10px #ff0000, 0 0 20px #8a0303;
+            letter-spacing: 3px;
+            margin-bottom: 10px;
+            animation: flicker 5s infinite alternate;
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: #a0a0a0;
+            margin-bottom: 20px;
+        }
+
+        .game-area {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            margin: 40px 0;
+        }
+
+        .game-screen {
+            flex: 2;
+            min-width: 300px;
+            background-color: #111;
+            border: 2px solid #3a0000;
+            border-radius: 5px;
+            padding: 20px;
+            box-shadow: 0 0 15px rgba(139, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+            height: 600px;
+        }
+
+        .game-screen::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                repeating-linear-gradient(
+                    0deg,
+                    rgba(18, 0, 0, 0.2) 0px,
+                    rgba(18, 0, 0, 0.2) 1px,
+                    transparent 1px,
+                    transparent 2px
+                );
+            pointer-events: none;
+        }
+
+        .screen-title {
+            color: #8a0303;
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            text-align: center;
+            border-bottom: 1px solid #3a0000;
+            padding-bottom: 10px;
+        }
+
+        .game-info {
+            flex: 1;
+            min-width: 300px;
+            background-color: #111;
+            border: 2px solid #3a0000;
+            border-radius: 5px;
+            padding: 20px;
+            box-shadow: 0 0 15px rgba(139, 0, 0, 0.3);
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .control-btn {
+            background-color: #2a0000;
+            color: #c9c9c9;
+            border: 1px solid #5a0000;
+            padding: 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1rem;
+        }
+
+        .control-btn:hover {
+            background-color: #5a0000;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+        }
+
+        .inventory {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .inventory-item {
+            width: 60px;
+            height: 60px;
+            background-color: #1a1a1a;
+            border: 1px solid #3a0000;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .game-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #1a1a1a;
+            border-radius: 5px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            color: #8a0303;
+        }
+
+        .game-objects {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .game-object {
+            background-color: #1a1a1a;
+            border: 1px solid #3a0000;
+            border-radius: 5px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .game-object:hover {
+            background-color: #2a0000;
+            transform: scale(1.05);
+        }
+
+        .object-icon {
+            font-size: 2rem;
+            margin-bottom: 5px;
+        }
+
+        .granny-indicator {
+            height: 20px;
+            background: linear-gradient(to right, #0a0a0a, #8a0303);
+            border-radius: 10px;
+            margin-top: 5px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .granny-progress {
+            height: 100%;
+            width: 30%;
+            background: linear-gradient(to right, #8a0303, #ff0000);
+            border-radius: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        .messages {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #1a1a1a;
+            border-radius: 5px;
+            border-left: 3px solid #8a0303;
+            min-height: 100px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px dashed #333;
+        }
+
+        .message-time {
+            color: #8a0303;
+            font-size: 0.8rem;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px 0;
+            border-top: 1px solid #3a0000;
+            margin-top: 40px;
+            color: #666;
+        }
+
+        /* Game Canvas */
+        #gameCanvas {
+            width: 100%;
+            height: 400px;
+            background-color: #0f0f0f;
+            border: 1px solid #3a0000;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+
+        @keyframes flicker {
+            0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+                text-shadow: 0 0 10px #ff0000, 0 0 20px #8a0303;
+            }
+            20%, 24%, 55% {
+                text-shadow: none;
+            }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .game-area {
+                flex-direction: column;
+            }
+            
+            h1 {
+                font-size: 2.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ESCAPE GRANNY'S HOUSE</h1>
+            <p class="subtitle">A horror survival game where you must escape before Granny finds you</p>
+        </header>
+
+        <div class="game-area">
+            <div class="game-screen">
+                <h2 class="screen-title">GRANNY'S HOUSE</h2>
+                <div class="game-stats">
+                    <div class="stat">
+                        <div>DAYS LEFT</div>
+                        <div class="stat-value" id="daysLeft">5</div>
+                    </div>
+                    <div class="stat">
+                        <div>NOISE LEVEL</div>
+                        <div class="stat-value" id="noiseLevel">12%</div>
+                    </div>
+                    <div class="stat">
+                        <div>GRANNY'S AWARENESS</div>
+                        <div class="granny-indicator">
+                            <div class="granny-progress" id="grannyAwareness"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <canvas id="gameCanvas"></canvas>
+
+                <div class="messages" id="messages">
+                    <div class="message">
+                        <span class="message-time">[DAY 1 - 09:30 AM]</span> You wake up in a strange room. The door is locked.
+                    </div>
+                    <div class="message">
+                        <span class="message-time">[DAY 1 - 09:35 AM]</span> You hear footsteps in the hallway. Granny is nearby!
+                    </div>
+                    <div class="message">
+                        <span class="message-time">[DAY 1 - 09:40 AM]</span> Found a key under the bed. It might unlock the door.
+                    </div>
+                </div>
+            </div>
+
+            <div class="game-info">
+                <h2 class="screen-title">CONTROLS & INVENTORY</h2>
+                
+                <div class="controls">
+                    <button class="control-btn" id="moveForward">MOVE FORWARD</button>
+                    <button class="control-btn" id="moveBack">MOVE BACK</button>
+                    <button class="control-btn" id="turnLeft">TURN LEFT</button>
+                    <button class="control-btn" id="turnRight">TURN RIGHT</button>
+                    <button class="control-btn" id="interact">INTERACT</button>
+                    <button class="control-btn" id="hide">HIDE</button>
+                    <button class="control-btn" id="useItem">USE ITEM</button>
+                    <button class="control-btn" id="dropItem">DROP ITEM</button>
+                </div>
+
+                <h3 style="margin-top: 30px; color: #8a0303;">INVENTORY</h3>
+                <div class="inventory" id="inventory">
+                    <div class="inventory-item" data-item="key">🔑</div>
+                    <div class="inventory-item" data-item="candle">🕯️</div>
+                    <div class="inventory-item"></div>
+                    <div class="inventory-item"></div>
+                    <div class="inventory-item"></div>
+                    <div class="inventory-item"></div>
+                </div>
+
+                <div style="margin-top: 30px;">
+                    <h3 style="color: #8a0303; margin-bottom: 10px;">GAME OBJECTIVE</h3>
+                    <p>Find all necessary items and escape Granny's house within 5 days. Avoid making noise and stay out of Granny's sight!</p>
+                    
+                    <h3 style="color: #8a0303; margin: 20px 0 10px;">TIPS</h3>
+                    <ul style="padding-left: 20px;">
+                        <li>Hide under beds or in cabinets when Granny is nearby</li>
+                        <li>Some items can be combined to create useful tools</li>
+                        <li>Close doors behind you to slow Granny down</li>
+                        <li>Listen carefully for Granny's footsteps</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>ESCAPE GRANNY'S HOUSE | A Horror Survival Game Experience</p>
+            <p>© 2023 Dark Games Studio | Not affiliated with the original Granny game</p>
+        </footer>
+    </div>
+
+    <script>
+        // Game Engine
+        class HorrorGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.canvas.width = this.canvas.offsetWidth;
+                this.canvas.height = this.canvas.offsetHeight;
+                
+                this.player = {
+                    x: this.canvas.width / 2,
+                    y: this.canvas.height / 2,
+                    size: 20,
+                    speed: 3,
+                    direction: 0, // in radians
+                    hidden: false
+                };
+                
+                this.granny = {
+                    x: 100,
+                    y: 100,
+                    size: 25,
+                    speed: 2,
+                    awareness: 0.3, // 0 to 1
+                    state: 'patrol', // patrol, chase, search
+                    patrolPoints: [
+                        {x: 100, y: 100},
+                        {x: this.canvas.width - 100, y: 100},
+                        {x: this.canvas.width - 100, y: this.canvas.height - 100},
+                        {x: 100, y: this.canvas.height - 100}
+                    ],
+                    currentPatrolIndex: 0
+                };
+                
+                this.items = [
+                    {type: 'key', x: 300, y: 200, collected: false},
+                    {type: 'hammer', x: 500, y: 300, collected: false},
+                    {type: 'code', x: 200, y: 400, collected: false}
+                ];
+                
+                this.hidingSpots = [
+                    {x: 150, y: 350, width: 60, height: 80},
+                    {x: 600, y: 150, width: 60, height: 80},
+                    {x: 400, y: 450, width: 60, height: 80}
+                ];
+                
+                this.doors = [
+                    {x: 0, y: this.canvas.height/2 - 40, width: 20, height: 80, locked: true}
+                ];
+                
+                this.noiseLevel = 0.12;
+                this.daysLeft = 5;
+                this.gameOver = false;
+                
+                this.initEventListeners();
+                this.gameLoop();
+            }
+            
+            initEventListeners() {
+                // Movement controls
+                document.getElementById('moveForward').addEventListener('click', () => this.movePlayer(1));
+                document.getElementById('moveBack').addEventListener('click', () => this.movePlayer(-1));
+                document.getElementById('turnLeft').addEventListener('click', () => this.turnPlayer(-0.2));
+                document.getElementById('turnRight').addEventListener('click', () => this.turnPlayer(0.2));
+                document.getElementById('interact').addEventListener('click', () => this.interact());
+                document.getElementById('hide').addEventListener('click', () => this.toggleHide());
+                document.getElementById('useItem').addEventListener('click', () => this.useItem());
+                document.getElementById('dropItem').addEventListener('click', () => this.dropItem());
+                
+                // Keyboard controls
+                document.addEventListener('keydown', (e) => {
+                    switch(e.key) {
+                        case 'w': case 'ArrowUp': this.movePlayer(1); break;
+                        case 's': case 'ArrowDown': this.movePlayer(-1); break;
+                        case 'a': case 'ArrowLeft': this.turnPlayer(-0.2); break;
+                        case 'd': case 'ArrowRight': this.turnPlayer(0.2); break;
+                        case 'e': this.interact(); break;
+                        case 'h': this.toggleHide(); break;
+                        case 'u': this.useItem(); break;
+                        case 'q': this.dropItem(); break;
+                    }
+                });
+                
+                // Inventory items
+                document.querySelectorAll('.inventory-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        if (item.dataset.item) {
+                            this.addMessage(`Selected ${item.dataset.item}`);
+                        }
+                    });
+                });
+            }
+            
+            movePlayer(direction) {
+                if (this.player.hidden || this.gameOver) return;
+                
+                const newX = this.player.x + Math.cos(this.player.direction) * this.player.speed * direction;
+                const newY = this.player.y + Math.sin(this.player.direction) * this.player.speed * direction;
+                
+                // Boundary check
+                if (newX > this.player.size && newX < this.canvas.width - this.player.size) {
+                    this.player.x = newX;
+                }
+                if (newY > this.player.size && newY < this.canvas.height - this.player.size) {
+                    this.player.y = newY;
+                }
+                
+                // Increase noise when moving
+                this.noiseLevel = Math.min(1, this.noiseLevel + 0.02);
+                document.getElementById('noiseLevel').textContent = Math.round(this.noiseLevel * 100) + '%';
+                
+                // Check for collisions with items
+                this.checkItemCollisions();
+                
+                // Check if player is near Granny
+                this.checkGrannyProximity();
+            }
+            
+            turnPlayer(angle) {
+                if (this.player.hidden || this.gameOver) return;
+                this.player.direction += angle;
+            }
+            
+            toggleHide() {
+                if (this.gameOver) return;
+                
+                // Check if player is near a hiding spot
+                const nearHidingSpot = this.hidingSpots.some(spot => {
+                    return Math.abs(this.player.x - (spot.x + spot.width/2)) < 50 && 
+                           Math.abs(this.player.y - (spot.y + spot.height/2)) < 50;
+                });
+                
+                if (nearHidingSpot) {
+                    this.player.hidden = !this.player.hidden;
+                    this.addMessage(this.player.hidden ? "You found a hiding spot!" : "You left your hiding spot.");
+                    
+                    if (this.player.hidden) {
+                        this.noiseLevel = Math.max(0, this.noiseLevel - 0.1);
+                        document.getElementById('noiseLevel').textContent = Math.round(this.noiseLevel * 100) + '%';
+                    }
+                } else {
+                    this.addMessage("No hiding spot nearby!");
+                }
+            }
+            
+            interact() {
+                if (this.gameOver) return;
+                
+                // Check if player is near a door
+                const nearDoor = this.doors.some(door => {
+                    return Math.abs(this.player.x - door.x) < 50 && 
+                           Math.abs(this.player.y - (door.y + door.height/2)) < 50;
+                });
+                
+                if (nearDoor) {
+                    const door = this.doors[0]; // For simplicity, using the first door
+                    if (door.locked) {
+                        // Check if player has key
+                        const hasKey = document.querySelector('.inventory-item[data-item="key"]') !== null;
+                        if (hasKey) {
+                            door.locked = false;
+                            this.addMessage("You unlocked the door with the key!");
+                            this.gameWin();
+                        } else {
+                            this.addMessage("The door is locked. You need a key.");
+                        }
+                    } else {
+                        this.addMessage("The door is already unlocked.");
+                    }
+                }
+                
+                // Check if player is near an item
+                this.items.forEach(item => {
+                    if (!item.collected && 
+                        Math.abs(this.player.x - item.x) < 30 && 
+                        Math.abs(this.player.y - item.y) < 30) {
+                        this.collectItem(item);
+                    }
+                });
+            }
+            
+            collectItem(item) {
+                item.collected = true;
+                
+                // Find empty inventory slot
+                const inventorySlots = document.querySelectorAll('.inventory-item');
+                for (let slot of inventorySlots) {
+                    if (!slot.dataset.item) {
+                        slot.textContent = this.getItemIcon(item.type);
+                        slot.dataset.item = item.type;
+                        break;
+                    }
+                }
+                
+                this.addMessage(`You found a ${item.type}!`);
+                
+                // Increase noise when collecting items
+                this.noiseLevel = Math.min(1, this.noiseLevel + 0.05);
+                document.getElementById('noiseLevel').textContent = Math.round(this.noiseLevel * 100) + '%';
+            }
+            
+            getItemIcon(itemType) {
+                switch(itemType) {
+                    case 'key': return '🔑';
+                    case 'hammer': return '🔨';
+                    case 'code': return '🧩';
+                    default: return '❓';
+                }
+            }
+            
+            useItem() {
+                // For simplicity, just show a message
+                this.addMessage("You used an item.");
+            }
+            
+            dropItem() {
+                // For simplicity, just show a message
+                this.addMessage("You dropped an item.");
+            }
+            
+            checkItemCollisions() {
+                // Already handled in interact for simplicity
+            }
+            
+            checkGrannyProximity() {
+                const distance = Math.sqrt(
+                    Math.pow(this.player.x - this.granny.x, 2) + 
+                    Math.pow(this.player.y - this.granny.y, 2)
+                );
+                
+                if (distance < 100 && !this.player.hidden) {
+                    this.granny.state = 'chase';
+                    this.granny.awareness = Math.min(1, this.granny.awareness + 0.05);
+                } else if (distance < 200 && this.noiseLevel > 0.3 && !this.player.hidden) {
+                    this.granny.state = 'search';
+                    this.granny.awareness = Math.min(1, this.granny.awareness + 0.02);
+                } else {
+                    this.granny.state = 'patrol';
+                    this.granny.awareness = Math.max(0.1, this.granny.awareness - 0.01);
+                }
+                
+                // Update awareness indicator
+                document.getElementById('grannyAwareness').style.width = (this.granny.awareness * 100) + '%';
+                
+                // Check if caught
+                if (distance < 30 && !this.player.hidden) {
+                    this.gameOver = true;
+                    this.addMessage("GRANNY CAUGHT YOU! GAME OVER!");
+                }
+            }
+            
+            updateGranny() {
+                switch(this.granny.state) {
+                    case 'patrol':
+                        const target = this.granny.patrolPoints[this.granny.currentPatrolIndex];
+                        const dx = target.x - this.granny.x;
+                        const dy = target.y - this.granny.y;
+                        const distance = Math.sqrt(dx*dx + dy*dy);
+                        
+                        if (distance < 10) {
+                            this.granny.currentPatrolIndex = (this.granny.currentPatrolIndex + 1) % this.granny.patrolPoints.length;
+                        } else {
+                            this.granny.x += (dx / distance) * this.granny.speed;
+                            this.granny.y += (dy / distance) * this.granny.speed;
+                        }
+                        break;
+                        
+                    case 'chase':
+                        const pdx = this.player.x - this.granny.x;
+                        const pdy = this.player.y - this.granny.y;
+                        const pDistance = Math.sqrt(pdx*pdx + pdy*pdy);
+                        
+                        if (pDistance > 0) {
+                            this.granny.x += (pdx / pDistance) * this.granny.speed * 1.5;
+                            this.granny.y += (pdy / pDistance) * this.granny.speed * 1.5;
+                        }
+                        break;
+                        
+                    case 'search':
+                        // Move randomly when searching
+                        this.granny.x += (Math.random() - 0.5) * this.granny.speed * 2;
+                        this.granny.y += (Math.random() - 0.5) * this.granny.speed * 2;
+                        
+                        // Keep granny in bounds
+                        this.granny.x = Math.max(this.granny.size, Math.min(this.canvas.width - this.granny.size, this.granny.x));
+                        this.granny.y = Math.max(this.granny.size, Math.min(this.canvas.height - this.granny.size, this.granny.y));
+                        break;
+                }
+            }
+            
+            gameWin() {
+                this.gameOver = true;
+                this.addMessage("CONGRATULATIONS! YOU ESCAPED GRANNY'S HOUSE!");
+            }
+            
+            addMessage(text) {
+                const now = new Date();
+                const timeString = `[DAY ${this.daysLeft} - ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
+                
+                const messageElement = document.createElement('div');
+                messageElement.className = 'message';
+                messageElement.innerHTML = `<span class="message-time">${timeString}</span> ${text}`;
+                
+                const messagesContainer = document.getElementById('messages');
+                messagesContainer.appendChild(messageElement);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                
+                // Limit number of messages
+                if(messagesContainer.children.length > 8) {
+                    messagesContainer.removeChild(messagesContainer.children[0]);
+                }
+            }
+            
+            draw() {
+                // Clear canvas
+                this.ctx.fillStyle = '#0f0f0f';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw hiding spots
+                this.ctx.fillStyle = '#2a1a1a';
+                this.hidingSpots.forEach(spot => {
+                    this.ctx.fillRect(spot.x, spot.y, spot.width, spot.height);
+                    this.ctx.strokeStyle = '#5a0000';
+                    this.ctx.strokeRect(spot.x, spot.y, spot.width, spot.height);
+                });
+                
+                // Draw doors
+                this.ctx.fillStyle = '#3a2a1a';
+                this.doors.forEach(door => {
+                    this.ctx.fillRect(door.x, door.y, door.width, door.height);
+                    this.ctx.strokeStyle = door.locked ? '#8a0303' : '#00aa00';
+                    this.ctx.strokeRect(door.x, door.y, door.width, door.height);
+                });
+                
+                // Draw items
+                this.items.forEach(item => {
+                    if (!item.collected) {
+                        this.ctx.fillStyle = '#1a3a5a';
+                        this.ctx.beginPath();
+                        this.ctx.arc(item.x, item.y, 10, 0, Math.PI * 2);
+                        this.ctx.fill();
+                        this.ctx.strokeStyle = '#ffffff';
+                        this.ctx.stroke();
+                    }
+                });
+                
+                // Draw granny
+                this.ctx.fillStyle = this.granny.state === 'chase' ? '#8a0303' : '#5a0303';
+                this.ctx.beginPath();
+                this.ctx.arc(this.granny.x, this.granny.y, this.granny.size, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Draw player
+                if (!this.player.hidden) {
+                    this.ctx.fillStyle = '#1a5a3a';
+                    this.ctx.beginPath();
+                    this.ctx.arc(this.player.x, this.player.y, this.player.size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // Draw direction indicator
+                    this.ctx.strokeStyle = '#ffffff';
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.player.x, this.player.y);
+                    this.ctx.lineTo(
+                        this.player.x + Math.cos(this.player.direction) * 30,
+                        this.player.y + Math.sin(this.player.direction) * 30
+                    );
+                    this.ctx.stroke();
+                } else {
+                    // Draw hidden player indicator
+                    this.ctx.fillStyle = '#3a3a3a';
+                    this.ctx.beginPath();
+                    this.ctx.arc(this.player.x, this.player.y, 10, 0, Math.PI * 2);
+                    this.ctx.fill();
+                }
+                
+                // Draw granny's field of view when chasing
+                if (this.granny.state === 'chase') {
+                    this.ctx.globalAlpha = 0.2;
+                    this.ctx.fillStyle = '#8a0303';
+                    this.ctx.beginPath();
+                    this.ctx.arc(this.granny.x, this.granny.y, 100, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    this.ctx.globalAlpha = 1.0;
+                }
+            }
+            
+            gameLoop() {
+                if (!this.gameOver) {
+                    this.updateGranny();
+                    this.draw();
+                    
+                    // Gradually decrease noise
+                    this.noiseLevel = Math.max(0.05, this.noiseLevel - 0.005);
+                    document.getElementById('noiseLevel').textContent = Math.round(this.noiseLevel * 100) + '%';
+                    
+                    // Random events
+                    if (Math.random() < 0.01) {
+                        const events = [
+                            "You hear a door creak in the distance...",
+                            "Something rattles downstairs.",
+                            "A cold draft sends shivers down your spine.",
+                            "The floorboards groan under invisible weight."
+                        ];
+                        this.addMessage(events[Math.floor(Math.random() * events.length)]);
+                    }
+                }
+                
+                requestAnimationFrame(() => this.gameLoop());
+            }
+        }
+
+        // Initialize the game when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            const game = new HorrorGame();
+        });
+    </script>
+</body>
+</html>
